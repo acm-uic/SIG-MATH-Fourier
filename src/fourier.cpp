@@ -23,10 +23,40 @@ std::vector<Complex> dft(std::vector<Complex>& X)
     return result;
 }
 
+std::vector<Complex> fft_recurse(std::vector<Complex> X)
+{
+    // Length and helper vectors
+    const unsigned int N = X.size();
+    std::vector<Complex> evens(N/2);
+    std::vector<Complex> odds(N/2);
+
+    if (N == 1 )
+        return X;     // Recursion base case
+
+    // Copy the evens and odds
+    for (unsigned int k = 0; k < N/2; k++) {
+        evens.at(k) = X.at(2*k);
+        odds.at(k) = X.at(2*k + 1);
+    }
+
+    // Recurse the DFT
+    evens = fft_recurse(evens);
+    odds = fft_recurse(odds);
+
+    // Computation result. 
+    // Note that we only need to pass through half the list since the second half's root of unity uses the opposite sign of the first half.
+    for (unsigned int k = 0; k < N/2; k++) {
+        Complex root_of_unity = std::polar(1.0, -2*M_PI*k / N);
+        X.at(k) = evens.at(k) + root_of_unity * odds.at(k);
+        X.at(k + N/2) = evens.at(k) - root_of_unity * odds.at(k);
+    }
+    return X;
+}
+
 int main(int argc, char* argv[])
 {
     std::vector<Complex> X;
-    unsigned int N = 8;
+    unsigned int N = 32;
     for (unsigned int k = 0; k < N; k++) {
         X.push_back(k);   
     }
