@@ -13,7 +13,7 @@ pip install -r tests/requirements.txt
 # Binding the C++ to Python
 MODULE_NAME="acmFourier"
 
-g++ -O3 -Wall -shared -std=c++17 -fPIC \
+g++ -O3 -Wall -Werror -shared -std=c++17 -fPIC -fopenmp \
     $(python -m pybind11 --includes) \
     -I src/ \
     tests/fourier-bindings.cpp \
