@@ -5,10 +5,12 @@ BIN_DIR=bin
 
 basic: $(SRC_DIR)/main.cpp
 	mkdir -p $(BIN_DIR)
-	g++ $< -O3 -flto -o $(BIN_DIR)/fourier
+	g++ $< -O3 -flto -march=native \
+		-Wall -Werror \
+		-o $(BIN_DIR)/fourier
 
 run_basic: basic
 	$(BIN_DIR)/fourier
 
 clean:
-	rm -rf /bin
+	rm -rf bin/
