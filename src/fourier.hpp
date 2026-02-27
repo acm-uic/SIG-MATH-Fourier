@@ -4,9 +4,6 @@
 
 using Complex = std::complex<double>;
 
-/*
-* Basic Naive Discrete Fourier Transform
-*/
 std::vector<Complex> dft(std::vector<Complex>& X) 
 {
     unsigned int N = X.size();
@@ -32,6 +29,10 @@ std::vector<Complex> fft_recurse(std::vector<Complex> X)
 {
     // Length and helper vectors
     const unsigned int N = X.size();
+    if ((N & (N-1)) != 0) {
+        throw std::invalid_argument("Input size is not a power of 2");
+    }
+
     std::vector<Complex> evens(N/2);
     std::vector<Complex> odds(N/2);
 
@@ -65,6 +66,10 @@ std::vector<Complex> fft_iterative_pow_of_2(std::vector<Complex> X)
 {
     // Length
     const unsigned int N = X.size();
+    if ((N & (N-1)) != 0) {
+        throw std::invalid_argument("Input size is not a power of 2");
+    }
+
 
     // Bit-reversal permutation
     unsigned int index_bit_reversed = 0;

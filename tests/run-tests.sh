@@ -17,7 +17,7 @@ g++ -O3 -Wall -shared -std=c++17 -fPIC \
     $(python -m pybind11 --includes) \
     -I src/ \
     tests/fourier-bindings.cpp \
-    -o tests/$MODULE_NAME $(python3-config --extension-suffix)
+    -o tests/$MODULE_NAME$(python3-config --extension-suffix)
 
 # Running the test Python file
 pytest tests/
