@@ -1,5 +1,14 @@
+# Basic Makefile script for compiling basic code
+
 SRC_DIR=src
 BIN_DIR=bin
 
-fourier: $(SRC_DIR)/fourier.cpp
+basic: $(SRC_DIR)/main.cpp
+	mkdir -p $(BIN_DIR)
 	g++ $< -O3 -flto -o $(BIN_DIR)/fourier
+
+run_basic: basic
+	$(BIN_DIR)/fourier
+
+clean:
+	rm -rf /bin
