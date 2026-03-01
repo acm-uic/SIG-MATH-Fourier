@@ -26,7 +26,14 @@ int main(int argc, char** argv)
     std::vector<complex_t> X_dft =  dft_cuda(X);
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << "Duration for whole CUDA DFT operation (including copy back output to host): " << duration.count() << " microseconds"  << std::endl;
+    std::cout << "Duration for CUDA DFT operation (including copy back output to host): " << duration.count() << " microseconds"  << std::endl;
+
+    start = std::chrono::high_resolution_clock::now();
+    std::vector<complex_t> X_naive_dft =  naive_dft_cuda(X);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << "Duration for naive CUDA DFT operation (including copy back output to host): " << duration.count() << " microseconds"  << std::endl;
+
     //for (uint32_t k = 0; k < N; k++) {
     //    std::cout << X_dft[k] << std::endl;
     //}

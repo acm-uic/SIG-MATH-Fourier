@@ -102,7 +102,7 @@ __global__ void dft_kernel(cudaComplex_t* input, cudaComplex_t* output, cudaComp
         // Index within this block tile
         uint32_t m = tile + tid;
 
-        // Populate a contiguous shared memory block with input data
+        // Populate the shared memory block with input data
         shared_data[tid] = (m < N) ? input[m] : 0.0;
         __syncthreads(); // Barrier: Make sure all shared data are populated before moving on
 
@@ -113,6 +113,7 @@ __global__ void dft_kernel(cudaComplex_t* input, cudaComplex_t* output, cudaComp
                 // Computing twiddle index (type conversion mess but this is just to be safe)
                 uint32_t twiddle_index = static_cast<uint32_t>((uint64_t)(k * (tile + j)) % N);
 
+                // Accumulate the sum using shared data and pre-computed twiddles
                 sum += shared_data[j] * twiddles[twiddle_index];
             }
         }
