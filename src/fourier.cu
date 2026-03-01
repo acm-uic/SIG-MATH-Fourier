@@ -7,15 +7,47 @@
 #include <chrono>
 #include <iomanip>
 
+// Note we are going with double-precision complex so limited (please VERY limit) intrinsics acceleration :)
 using cudaComplex_t = cuda::std::complex<double>;
 using complex_t = std::complex<double>;
 
 #define THREADS_PER_BLOCK 256
 
+
 /***
-*   Naive Discrete Fourier Transform
+*   The MVP for improving performance of Fourier Transform kernels: Pre-computing twiddle factors
 ***/
-__global__ void naive_dft_kernel(cudaComplex_t* input, cudaComplex_t* output, uint32_t N)
+
+// Forward Fourier Transform twiddles
+__global__ void precompute_twiddles(cudaComplex_t* twiddles, uint32_t N)
+{
+    // Index
+    uint32_t k = blockIdx.x*blockDim.x + threadIdx.x;
+    if (k >= N)
+        return;
+
+    // Computing twiddle factors
+    double theta = 2.0*M_PI*k / N;
+    twiddles[k] = cudaComplex_t(cos(theta), sin(theta));
+}
+
+// Inverse Fourier Transform Twiddles
+__global__ void precompute_inverse_twiddles(cudaComplex_t* twiddles, uint32_t N)
+{
+    // Index
+    uint32_t k = blockIdx.x*blockDim.x + threadIdx.x;
+
+    // Computing twiddle factors
+    if (k < N) {
+        double theta = 2.0*M_PI*k / N;
+        twiddles[k] = cudaComplex_t(cos(theta), sin(theta));
+    }
+}
+
+/***
+*   Discrete Fourier Transform
+***/
+__global__ void naive_dft_kernel(cudaComplex_t* input, cudaComplex_t* output, cudaComplex_t* twiddles, uint32_t N)
 {
     // Point index
     uint32_t k = blockIdx.x*blockDim.x + threadIdx.x;
@@ -25,9 +57,10 @@ __global__ void naive_dft_kernel(cudaComplex_t* input, cudaComplex_t* output, ui
         cudaComplex_t sum(0.0, 0.0);
 
         for (uint32_t m = 0; m < N; m++) {
-            double theta = -2.0*M_PI*k*m / N;
-            cudaComplex_t root_of_unity(cos(theta), sin(theta));
-            sum += input[m] * root_of_unity;
+
+            // Computing twiddle index (type conversion mess but this is just to be safe from overflowing)
+            uint32_t twiddle_index = static_cast<uint32_t>(static_cast<uint64_t>(k)*m % N);
+            sum += input[m] * twiddles[twiddle_index];
         }
 
         // Storing the sum output
@@ -53,8 +86,14 @@ std::vector<complex_t> naive_dft_cuda(const std::vector<complex_t>& X)
 
     // Kernel launch and compute on device 
     const uint32_t n_blocks = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
-    naive_dft_kernel<<<n_blocks, THREADS_PER_BLOCK>>>(d_input, d_output, N);
 
+    cudaComplex_t* d_twiddles;
+    cudaMalloc(&d_twiddles, N*sizeof(cudaComplex_t));
+    precompute_twiddles<<<n_blocks, THREADS_PER_BLOCK>>>(d_twiddles, N);
+    cudaDeviceSynchronize();
+
+    naive_dft_kernel<<<n_blocks, THREADS_PER_BLOCK>>>(d_input, d_output, d_twiddles, N);
+    cudaDeviceSynchronize();
 
     // Copy data back to host
     std::vector<complex_t> output(N);
@@ -63,27 +102,14 @@ std::vector<complex_t> naive_dft_cuda(const std::vector<complex_t>& X)
     // Free device data
     cudaFree(d_input);
     cudaFree(d_output);
+    cudaFree(d_twiddles);
 
     return output;
 }
 
-
 /***
 *   Optimize way to do DFT with CUDA
 ***/
-
-// Pre-compute twiddles to reduce workload for the main dft kernel
-__global__ void precompute_twiddles(cudaComplex_t* twiddles, uint32_t N)
-{
-    // Index
-    uint32_t k = blockIdx.x*blockDim.x + threadIdx.x;
-
-    // Computing twiddle factors
-    if (k < N) {
-        double theta = -2.0*M_PI*k / N;
-        twiddles[k] = cudaComplex_t(cos(theta), sin(theta));
-    }
-}
 
 // Optimizing the DFT summing kernel via tiling the sum in blocks and pre-load inputs into shared memory region
 // Essentially optimize the memory access pattern of cuda threads
@@ -133,9 +159,10 @@ __global__ void dft_kernel(cudaComplex_t* input, cudaComplex_t* output, cudaComp
 std::vector<complex_t> dft_cuda(const std::vector<complex_t>& X)
 {
     const uint32_t N = X.size();
-    if ((N & (N-1)) != 0) {
+    if ((N & (N-1)) != 0)
         throw std::invalid_argument("Input size is not a power of 2");
-    }
+    if (N <= 0)
+        return {};
 
     // Initialize device data
     cudaComplex_t* d_input;
@@ -176,9 +203,22 @@ std::vector<complex_t> dft_cuda(const std::vector<complex_t>& X)
 ***/
 
 // Bit-reversal kernel
-__global__ void bit_reversal_kernel()
+__global__ void bit_reversal_permutation_kernel(cudaComplex_t* X, uint32_t N, uint32_t log2N)
 {
-    // TODO
+    // Point index
+    uint32_t k = blockDim.x*blockIdx.x + threadIdx.x;
+    if (k >= N)
+        return;
+
+    // Bit-reversing the index
+    uint32_t bit_rev_k = __brev(k);
+
+    // Swap and making sure we don't double swap
+    if (k < bit_rev_k) {
+        cudaComplex_t tmp = X[k];
+        X[k] = X[bit_rev_k];
+        X[bit_rev_k] = tmp;
+    }
 }
 
 
@@ -191,6 +231,43 @@ __global__ void butterfly_kernel()
 // Host-side function to launch FFT workloads
 std::vector<complex_t> fft_cuda(const std::vector<complex_t>& X)
 {
-    // TODO
+    // Input size handling
+    const uint32_t N = X.size();
+    if ((N & (N-1)) != 0)
+        throw std::invalid_argument("Input size is not a power of 2");
+    if (N <= 0)
+        return {};
+
+    // Calculate log_2 of the size
+    uint32_t log2N = 0;
+    uint32_t temp = N;
+    while (temp > 1) {
+        temp /= 2;
+        log2N++;
+    }
+
+    // Kernel launch data
+    const uint32_t n_blocks = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+
+    // Pre-compute twiddles factors
+    cudaComplex_t* d_twiddles;
+    cudaMalloc(&d_twiddles, N*sizeof(cudaComplex_t));
+    precompute_twiddles<<<n_blocks, THREADS_PER_BLOCK>>>(d_twiddles, N);
+
+    // Initialize device data
+    cudaComplex_t* d_X;
+    cudaMalloc(&d_X, N*sizeof(cudaComplex_t));
+    cudaMemcpy(d_X, X.data(), N*sizeof(cudaComplex_t), cudaMemcpyHostToDevice);
+
+    // Bit-reversal
+    bit_reversal_permutation_kernel<<<n_blocks, THREADS_PER_BLOCK>>>(d_X, N, log2N);
+    cudaDeviceSynchronize();
+
+    // TODO: Finish the butterfly kernel and compute
+
+    // Freeing device data
+    cudaFree(d_X);
+    cudaFree(d_twiddles);
+
     return {};
 }
