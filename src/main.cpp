@@ -5,7 +5,7 @@
 int main(int argc, char* argv[])
 {
     std::vector<Complex> X;
-    unsigned int N = 8192;
+    unsigned int N = (1 << 16);
     for (unsigned int k = 0; k < N; k++) {
         X.push_back(k);   
     }
