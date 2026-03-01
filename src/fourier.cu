@@ -38,9 +38,10 @@ __global__ void naive_dft_kernel(cudaComplex_t* input, cudaComplex_t* output, ui
 std::vector<complex_t> naive_dft_cuda(const std::vector<complex_t>& X)
 {
     const uint32_t N = X.size();
-    if ((N & (N-1)) != 0) {
+    if ((N & (N-1)) != 0)
         throw std::invalid_argument("Input size is not a power of 2");
-    }
+    if (N <= 0)
+        return {};
 
     // Initialize device data
     cudaComplex_t* d_input;
@@ -84,7 +85,7 @@ __global__ void precompute_twiddles(cudaComplex_t* twiddles, uint32_t N)
     }
 }
 
-// Optimizing the DFT summing kernel via tiling the sum in blocks to reduce striding 
+// Optimizing the DFT summing kernel via tiling the sum in blocks and pre-load inputs into shared memory region
 // Essentially optimize the memory access pattern of cuda threads
 __global__ void dft_kernel(cudaComplex_t* input, cudaComplex_t* output, cudaComplex_t* twiddles, uint32_t N)
 {
@@ -128,6 +129,7 @@ __global__ void dft_kernel(cudaComplex_t* input, cudaComplex_t* output, cudaComp
     }
 }
 
+// Host-side function to launch DFT kernels
 std::vector<complex_t> dft_cuda(const std::vector<complex_t>& X)
 {
     const uint32_t N = X.size();
@@ -186,6 +188,7 @@ __global__ void butterfly_kernel()
     // TODO
 }
 
+// Host-side function to launch FFT workloads
 std::vector<complex_t> fft_cuda(const std::vector<complex_t>& X)
 {
     // TODO
