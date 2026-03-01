@@ -27,7 +27,7 @@ __global__ void precompute_twiddles(cudaComplex_t* twiddles, uint32_t N)
         return;
 
     // Computing twiddle factors
-    double theta = 2.0*M_PI*k / N;
+    double theta = -2.0*M_PI*k / __uint2double_rn(N);
     twiddles[k] = cudaComplex_t(cos(theta), sin(theta));
 }
 
@@ -36,12 +36,12 @@ __global__ void precompute_inverse_twiddles(cudaComplex_t* twiddles, uint32_t N)
 {
     // Index
     uint32_t k = blockIdx.x*blockDim.x + threadIdx.x;
+    if (k >= N)
+        return;
 
     // Computing twiddle factors
-    if (k < N) {
-        double theta = 2.0*M_PI*k / N;
-        twiddles[k] = cudaComplex_t(cos(theta), sin(theta));
-    }
+    double theta = 2.0*M_PI*k / __uint2double_rn(N);
+    twiddles[k] = cudaComplex_t(cos(theta), sin(theta));
 }
 
 /***
@@ -203,7 +203,7 @@ std::vector<complex_t> dft_cuda(const std::vector<complex_t>& X)
 ***/
 
 // Bit-reversal kernel
-__global__ void bit_reversal_permutation_kernel(cudaComplex_t* X, uint32_t N, uint32_t log2N)
+__global__ void bit_reversal_permutation_kernel(cudaComplex_t* input, cudaComplex_t* output, uint32_t N, uint32_t log2N)
 {
     // Point index
     uint32_t k = blockDim.x*blockIdx.x + threadIdx.x;
@@ -211,25 +211,45 @@ __global__ void bit_reversal_permutation_kernel(cudaComplex_t* X, uint32_t N, ui
         return;
 
     // Bit-reversing the index
-    uint32_t bit_rev_k = __brev(k);
+    uint32_t bit_rev_k = __brev(k) >> (32 - log2N);
 
-    // Swap and making sure we don't double swap
-    if (k < bit_rev_k) {
-        cudaComplex_t tmp = X[k];
-        X[k] = X[bit_rev_k];
-        X[bit_rev_k] = tmp;
-    }
+    // Putting the index-bit-reversed value into output
+    output[k] = input[bit_rev_k];
 }
 
-
 // Butterfly operation kernel 
-__global__ void butterfly_kernel()
+__global__ void butterfly_kernel(cudaComplex_t* X, cudaComplex_t* twiddles, uint32_t N, uint32_t stage)
 {
-    // TODO
+    // Thread index check
+    uint32_t k = (blockDim.x*blockIdx.x + threadIdx.x);
+    if (k >= N/2)
+        return;
+
+    // Butterfly group sizes
+    uint32_t half_group_size = (1 << stage);
+    uint32_t full_group_size = (half_group_size << 1);
+
+    // Finding group index and offset
+    uint32_t group_index = k / half_group_size;
+    uint32_t group_offset = k % half_group_size;
+
+    // Twiddle index
+    uint32_t twiddle_stride = N / full_group_size;
+    uint32_t twiddle_index = group_offset * twiddle_stride;
+
+    // Compute the index of outputs
+    uint32_t lower_index = group_index*full_group_size + group_offset;
+    uint32_t upper_index = lower_index + half_group_size;
+
+    // Compute the outputs
+    cudaComplex_t p1 = X[lower_index];
+    cudaComplex_t p2 = X[upper_index]*twiddles[twiddle_index];
+    X[lower_index] = p1 + p2;
+    X[upper_index] = p1 - p2;
 }
 
 // Host-side function to launch FFT workloads
-std::vector<complex_t> fft_cuda(const std::vector<complex_t>& X)
+std::vector<complex_t> fft_pow_of_2_cuda(const std::vector<complex_t>& X)
 {
     // Input size handling
     const uint32_t N = X.size();
@@ -238,36 +258,44 @@ std::vector<complex_t> fft_cuda(const std::vector<complex_t>& X)
     if (N <= 0)
         return {};
 
+    // Initialize output
+    std::vector<complex_t> output(N);
+
     // Calculate log_2 of the size
-    uint32_t log2N = 0;
-    uint32_t temp = N;
-    while (temp > 1) {
-        temp /= 2;
-        log2N++;
-    }
+    uint32_t log2N = __builtin_ctz(N);
 
     // Kernel launch data
-    const uint32_t n_blocks = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    uint32_t n_blocks = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
     // Pre-compute twiddles factors
     cudaComplex_t* d_twiddles;
     cudaMalloc(&d_twiddles, N*sizeof(cudaComplex_t));
     precompute_twiddles<<<n_blocks, THREADS_PER_BLOCK>>>(d_twiddles, N);
+    cudaDeviceSynchronize();
 
     // Initialize device data
     cudaComplex_t* d_X;
+    cudaComplex_t* d_output;
     cudaMalloc(&d_X, N*sizeof(cudaComplex_t));
+    cudaMalloc(&d_output, N*sizeof(cudaComplex_t));
     cudaMemcpy(d_X, X.data(), N*sizeof(cudaComplex_t), cudaMemcpyHostToDevice);
 
     // Bit-reversal
-    bit_reversal_permutation_kernel<<<n_blocks, THREADS_PER_BLOCK>>>(d_X, N, log2N);
+    bit_reversal_permutation_kernel<<<n_blocks, THREADS_PER_BLOCK>>>(d_X, d_output, N, log2N);
     cudaDeviceSynchronize();
 
-    // TODO: Finish the butterfly kernel and compute
+    // Butterfly kernels compute
+    for (uint32_t stage = 0; stage < log2N; stage++) {
+        butterfly_kernel<<<n_blocks, THREADS_PER_BLOCK>>>(d_output, d_twiddles, N, stage);
+        cudaDeviceSynchronize();
+    }
+
+    // Copy results back
+    cudaMemcpy(output.data(), d_output, N*sizeof(cudaComplex_t), cudaMemcpyDeviceToHost);
 
     // Freeing device data
     cudaFree(d_X);
     cudaFree(d_twiddles);
 
-    return {};
+    return output;
 }
