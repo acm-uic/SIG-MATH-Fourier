@@ -4,3 +4,4 @@ bin/
 tests/acmFourier
 *.so
 tests/__pycache__
+f.py
