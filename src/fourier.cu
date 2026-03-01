@@ -296,6 +296,7 @@ std::vector<complex_t> fft_pow_of_2_cuda(const std::vector<complex_t>& X)
     // Freeing device data
     cudaFree(d_X);
     cudaFree(d_twiddles);
+    cudaFree(d_output);
 
     return output;
 }
