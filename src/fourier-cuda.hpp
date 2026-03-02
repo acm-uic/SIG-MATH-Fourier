@@ -11,6 +11,8 @@
 using cudaComplex_t = cuda::std::complex<double>;
 using complex_t = std::complex<double>;
 
+// Exposed host-side functions declerations
 std::vector<complex_t> fft_pow_of_2_cuda(const std::vector<complex_t>& X);
-std::vector<complex_t> naive_dft_cuda(const std::vector<complex_t>& X);
 std::vector<complex_t> dft_cuda(const std::vector<complex_t>& X);
+std::vector<complex_t> inverse_fft_pow_of_2_cuda(const std::vector<complex_t>& X);
+std::vector<complex_t> inverse_dft_cuda(const std::vector<complex_t>& X);

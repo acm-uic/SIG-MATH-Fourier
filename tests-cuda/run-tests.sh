@@ -12,14 +12,16 @@ source .venv/bin/activate
 
 # Binding the C++ to Python
 MODULE_NAME="acmFourierCUDA"
+TEST_DIR="tests-cuda"
 
-nvcc src/fourier.cu \
+nvcc -O3 -shared -std=c++17 \
+    src/fourier.cu \
     -I src/ \
-    tests/fourier-bindings.cpp \
-    -O3 -shared -std=c++20 \
-    -Xcompiler "-fPIC -Wall -Werror -O3 -std=c++23" \
+    $TEST_DIR/fourier-bindings.cpp \
+    -Xcompiler "-fPIC -Wall -Werror -Wextra -O3" \
     $(python -m pybind11 --includes) \
-    -o tests/$MODULE_NAME$(python3-config --extension-suffix)
+    -o $TEST_DIR/$MODULE_NAME$(python3-config --extension-suffix) \
+    -lcudart
 
 # Running the test Python file
 pytest tests-cuda/
