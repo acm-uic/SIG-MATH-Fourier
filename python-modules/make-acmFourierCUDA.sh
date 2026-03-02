@@ -19,7 +19,7 @@ nvcc -O3 -shared -std=c++20 \
     $SRC_DIR/fourier.cu \
     -I $SRC_DIR \
     $PY_MODULE_DIR/$PY_MODULE_NAME.cpp \
-    -Xcompiler "-fPIC -Wall -Werror -Wextra -O3" \
+    -Xcompiler "-fPIC -Wall -Werror -Wextra -O3 -std=c++23" \
     $(python -m pybind11 --includes) \
     -o $PY_MODULE_DIR/$PY_MODULE_NAME$(python3-config --extension-suffix) \
     -lcudart

@@ -3,6 +3,3 @@ bin/
 *.so
 **/__pycache__
 f.py
-
-# This will be public once we run on ACM-UIC's NERV cluster
-logs/
