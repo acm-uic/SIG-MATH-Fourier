@@ -1,0 +1,7 @@
+For 2^17 points 1D Fourier Transforms
+ 
+Basic runtimes: 
+Duration for bit-reversed FFT: 3060 microseconds
+
+CUDA runtimes: 
+Duration for CUDA FFT operation (including copy back output to host): 176191 microseconds

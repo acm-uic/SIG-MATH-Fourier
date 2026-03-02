@@ -111,7 +111,7 @@ std::vector<complex_t> dft_cuda(const std::vector<complex_t>& X)
     const uint32_t N = X.size();
     if ((N & (N-1)) != 0)
         throw std::invalid_argument("Input size is not a power of 2");
-    if (N <= 0)
+    if (N == 0)
         return {};
 
     // Initialize device data
@@ -122,17 +122,17 @@ std::vector<complex_t> dft_cuda(const std::vector<complex_t>& X)
     cudaMemcpy(d_input, X.data(), N*sizeof(cudaComplex_t), cudaMemcpyHostToDevice);
 
     // Kernel launch data
-    const uint32_t n_blocks = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    const uint32_t N_BLOCKS = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
     const uint32_t shared_size = THREADS_PER_BLOCK * sizeof(cudaComplex_t);
 
     // Initialize and pre-compute twiddles on device
     cudaComplex_t* d_twiddles;
     cudaMalloc(&d_twiddles, N*sizeof(cudaComplex_t));
-    precompute_twiddles<<<n_blocks, THREADS_PER_BLOCK>>>(d_twiddles, N);
+    precompute_twiddles<<<N_BLOCKS, THREADS_PER_BLOCK>>>(d_twiddles, N);
     cudaDeviceSynchronize();
 
     // DFT kernel launch and compute on device 
-    dft_kernel<<<n_blocks, THREADS_PER_BLOCK, shared_size>>>(d_input, d_output, d_twiddles, N);
+    dft_kernel<<<N_BLOCKS, THREADS_PER_BLOCK, shared_size>>>(d_input, d_output, d_twiddles, N);
     cudaDeviceSynchronize();
 
     // Copy data back to host
@@ -205,40 +205,53 @@ std::vector<complex_t> fft_pow_of_2_cuda(const std::vector<complex_t>& X)
     const uint32_t N = X.size();
     if ((N & (N-1)) != 0)
         throw std::invalid_argument("Input size is not a power of 2");
-    if (N <= 0)
+    if (N == 0)
         return {};
 
     // Initialize output
     std::vector<complex_t> output(N);
 
     // Calculate log_2 of the size
-    uint32_t log2N = __builtin_ctz(N);
+    uint32_t log2N = __builtin_ctz(N);  // Note for powers of 2, the number of trailling rightmost zeros in the bit-rep is the log_2
 
     // Kernel launch data
-    uint32_t n_blocks = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
-
-    // Pre-compute twiddles factors
-    cudaComplex_t* d_twiddles;
-    cudaMalloc(&d_twiddles, N*sizeof(cudaComplex_t));
-    precompute_twiddles<<<n_blocks, THREADS_PER_BLOCK>>>(d_twiddles, N);
-    cudaDeviceSynchronize();
+    uint32_t N_BLOCKS = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
     // Initialize device data
     cudaComplex_t* d_X;
     cudaComplex_t* d_output;
+    cudaComplex_t* d_twiddles;
     cudaMalloc(&d_X, N*sizeof(cudaComplex_t));
     cudaMalloc(&d_output, N*sizeof(cudaComplex_t));
     cudaMemcpy(d_X, X.data(), N*sizeof(cudaComplex_t), cudaMemcpyHostToDevice);
+    cudaMalloc(&d_twiddles, N*sizeof(cudaComplex_t));
+
+    //cudaEvent_t start, stop;
+    //cudaEventCreate(&start);
+    //cudaEventCreate(&stop);
+
+    //cudaEventRecord(start);
+    // Pre-compute twiddles factors
+    precompute_twiddles<<<N_BLOCKS, THREADS_PER_BLOCK>>>(d_twiddles, N);
+    cudaDeviceSynchronize();
 
     // Bit-reversal
-    bit_reversal_permutation_kernel<<<n_blocks, THREADS_PER_BLOCK>>>(d_X, d_output, N, log2N);
+    bit_reversal_permutation_kernel<<<N_BLOCKS, THREADS_PER_BLOCK>>>(d_X, d_output, N, log2N);
     cudaDeviceSynchronize();
 
     // Butterfly kernels compute
     for (uint32_t stage = 0; stage < log2N; stage++) {
-        butterfly_kernel<<<n_blocks, THREADS_PER_BLOCK>>>(d_output, d_twiddles, N, stage);
+        butterfly_kernel<<<N_BLOCKS, THREADS_PER_BLOCK>>>(d_output, d_twiddles, N, stage);
         cudaDeviceSynchronize();
     }
+
+    //cudaEventRecord(stop);
+    //cudaEventSynchronize(stop);
+
+    // Timing compute
+    //float kernel_ms = 0.0f;
+    //cudaEventElapsedTime(&kernel_ms, start, stop);
+    //printf("Actual compute time: %.6f microseconds\n", kernel_ms*1000);
 
     // Copy results back
     cudaMemcpy(output.data(), d_output, N*sizeof(cudaComplex_t), cudaMemcpyDeviceToHost);
@@ -247,6 +260,9 @@ std::vector<complex_t> fft_pow_of_2_cuda(const std::vector<complex_t>& X)
     cudaFree(d_X);
     cudaFree(d_twiddles);
     cudaFree(d_output);
+
+    //cudaEventDestroy(start);
+    //cudaEventDestroy(stop);
 
     return output;
 }
@@ -274,7 +290,7 @@ std::vector<complex_t> inverse_fft_pow_of_2_cuda(const std::vector<complex_t>& X
     const uint32_t N = X.size();
     if ((N & (N-1)) != 0)
         throw std::invalid_argument("Input size is not a power of 2");
-    if (N <= 0)
+    if (N == 0)
         return {};
 
     // Initialize output
@@ -284,33 +300,45 @@ std::vector<complex_t> inverse_fft_pow_of_2_cuda(const std::vector<complex_t>& X
     uint32_t log2N = __builtin_ctz(N);
 
     // Kernel launch data
-    uint32_t n_blocks = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
-
-    // Pre-compute twiddles factors
-    cudaComplex_t* d_twiddles;
-    cudaMalloc(&d_twiddles, N*sizeof(cudaComplex_t));
-    precompute_inverse_twiddles<<<n_blocks, THREADS_PER_BLOCK>>>(d_twiddles, N);
-    cudaDeviceSynchronize();
+    uint32_t N_BLOCKS = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
     // Initialize device data
     cudaComplex_t* d_X;
     cudaComplex_t* d_output;
+    cudaComplex_t* d_twiddles;
     cudaMalloc(&d_X, N*sizeof(cudaComplex_t));
     cudaMalloc(&d_output, N*sizeof(cudaComplex_t));
+    cudaMalloc(&d_twiddles, N*sizeof(cudaComplex_t));
     cudaMemcpy(d_X, X.data(), N*sizeof(cudaComplex_t), cudaMemcpyHostToDevice);
 
+    //cudaEvent_t start, stop;
+    //cudaEventCreate(&start);
+    //cudaEventCreate(&stop);
+
+   // cudaEventRecord(start);
+    // Pre-compute twiddles factors
+    precompute_inverse_twiddles<<<N_BLOCKS, THREADS_PER_BLOCK>>>(d_twiddles, N);
+    cudaDeviceSynchronize();
+
     // Bit-reversal
-    bit_reversal_permutation_kernel<<<n_blocks, THREADS_PER_BLOCK>>>(d_X, d_output, N, log2N);
+    bit_reversal_permutation_kernel<<<N_BLOCKS, THREADS_PER_BLOCK>>>(d_X, d_output, N, log2N);
     cudaDeviceSynchronize();
 
     // Butterfly kernels compute
     for (uint32_t stage = 0; stage < log2N; stage++) {
-        butterfly_kernel<<<n_blocks, THREADS_PER_BLOCK>>>(d_output, d_twiddles, N, stage);
+        butterfly_kernel<<<N_BLOCKS, THREADS_PER_BLOCK>>>(d_output, d_twiddles, N, stage);
         cudaDeviceSynchronize();
     }
 
     // Normalizing inverse transforms
-    normalize_inverse_transform<<<n_blocks, THREADS_PER_BLOCK>>>(d_output, N);
+    normalize_inverse_transform<<<N_BLOCKS, THREADS_PER_BLOCK>>>(d_output, N);
+    //cudaEventRecord(stop);
+    //cudaEventSynchronize(stop);
+
+    // Timing compute
+    //float kernel_ms = 0.0f;
+    //cudaEventElapsedTime(&kernel_ms, start, stop);
+    //printf("Actual compute time: %.6f microseconds\n", kernel_ms*1000);
 
     // Copy results back
     cudaMemcpy(output.data(), d_output, N*sizeof(cudaComplex_t), cudaMemcpyDeviceToHost);
@@ -319,6 +347,9 @@ std::vector<complex_t> inverse_fft_pow_of_2_cuda(const std::vector<complex_t>& X
     cudaFree(d_X);
     cudaFree(d_twiddles);
     cudaFree(d_output);
+
+    //cudaEventDestroy(start);
+    //cudaEventDestroy(stop);
 
     return output;
 }
@@ -329,7 +360,7 @@ std::vector<complex_t> inverse_dft_cuda(const std::vector<complex_t>& X)
     const uint32_t N = X.size();
     if ((N & (N-1)) != 0)
         throw std::invalid_argument("Input size is not a power of 2");
-    if (N <= 0)
+    if (N == 0)
         return {};
 
     // Initialize device data
@@ -340,21 +371,21 @@ std::vector<complex_t> inverse_dft_cuda(const std::vector<complex_t>& X)
     cudaMemcpy(d_input, X.data(), N*sizeof(cudaComplex_t), cudaMemcpyHostToDevice);
 
     // Kernel launch data
-    const uint32_t n_blocks = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    const uint32_t N_BLOCKS = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
     const uint32_t shared_size = THREADS_PER_BLOCK * sizeof(cudaComplex_t);
 
     // Initialize and pre-compute twiddles on device
     cudaComplex_t* d_twiddles;
     cudaMalloc(&d_twiddles, N*sizeof(cudaComplex_t));
-    precompute_inverse_twiddles<<<n_blocks, THREADS_PER_BLOCK>>>(d_twiddles, N);
+    precompute_inverse_twiddles<<<N_BLOCKS, THREADS_PER_BLOCK>>>(d_twiddles, N);
     cudaDeviceSynchronize();
 
     // DFT kernel launch and compute on device 
-    dft_kernel<<<n_blocks, THREADS_PER_BLOCK, shared_size>>>(d_input, d_output, d_twiddles, N);
+    dft_kernel<<<N_BLOCKS, THREADS_PER_BLOCK, shared_size>>>(d_input, d_output, d_twiddles, N);
     cudaDeviceSynchronize();
 
     // Normalizing 
-    normalize_inverse_transform<<<n_blocks, THREADS_PER_BLOCK>>>(d_output, N);
+    normalize_inverse_transform<<<N_BLOCKS, THREADS_PER_BLOCK>>>(d_output, N);
 
     // Copy data back to host
     std::vector<complex_t> output(N);

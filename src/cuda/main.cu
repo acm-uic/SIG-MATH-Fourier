@@ -6,7 +6,7 @@
 int main(int argc, char** argv)
 {
     // Size of 1d signal
-    uint32_t N = (1 << 16);
+    uint32_t N = (1 << 17);
 
     // Generate basic array for testing
     std::vector<complex_t> X; 

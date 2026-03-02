@@ -6,6 +6,7 @@
 #include <iostream>
 #include <chrono>
 #include <iomanip>
+#include <bit>
 
 // Note we are going with double-precision complex so limited (please VERY limit) intrinsics operations :)
 using cudaComplex_t = cuda::std::complex<double>;
