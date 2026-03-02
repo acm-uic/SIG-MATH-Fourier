@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # This is meant to be run from directory root
-# i.e. run it like `./tests-cuda/run-tests.sh` from SIG-MATH-Fourier/ directory
+# i.e. run it like `./tests/cuda/run-tests.sh` from SIG-MATH-Fourier/ directory
 
 # Names of stuff
 MODULE_NAME="acmFourierCUDA"
 MODULE_DIR="python-modules"
-TEST_DIR="tests-cuda"
+TEST_DIR="tests/cuda"
 
 # Compiling the basic C++ code into a Python module
 source python-modules/make-$MODULE_NAME.sh
