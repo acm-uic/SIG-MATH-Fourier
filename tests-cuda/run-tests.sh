@@ -1,27 +1,18 @@
 #!/bin/bash
 
 # This is meant to be run from directory root
-# i.e. run it like `./tests/run-tests.sh` from SIG-MATH-Fourier/ directory
+# i.e. run it like `./tests-cuda/run-tests.sh` from SIG-MATH-Fourier/ directory
 
-
-# Setting Python environments
-python3 -m venv .venv
-source .venv/bin/activate
-#pip install --upgrade pip
-#pip install -r tests/requirements.txt
-
-# Binding the C++ to Python
+# Names of stuff
 MODULE_NAME="acmFourierCUDA"
+MODULE_DIR="python-modules"
 TEST_DIR="tests-cuda"
 
-nvcc -O3 -shared -std=c++17 \
-    src/fourier.cu \
-    -I src/ \
-    $TEST_DIR/fourier-bindings.cpp \
-    -Xcompiler "-fPIC -Wall -Werror -Wextra -O3" \
-    $(python -m pybind11 --includes) \
-    -o $TEST_DIR/$MODULE_NAME$(python3-config --extension-suffix) \
-    -lcudart
+# Compiling the basic C++ code into a Python module
+source python-modules/make-$MODULE_NAME.sh
 
-# Running the test Python file
-pytest tests-cuda/
+# Move the compiled Python module here
+mv $MODULE_DIR/$MODULE_NAME$(python3-config --extension-suffix) $TEST_DIR
+
+# Running the test Python files
+pytest $TEST_DIR
