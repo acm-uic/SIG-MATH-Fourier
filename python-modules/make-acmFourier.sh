@@ -5,7 +5,8 @@
 
 # Names and locations
 PY_MODULE_NAME="acmFourier"
-PY_MODULE_DIR="python-PY_MODULEs"
+PY_MODULE_DIR="python-modules"
+SRC_DIR="src/"
 
 # Setting Python environments
 python3 -m venv .venv
@@ -16,6 +17,6 @@ pip install -r $PY_MODULE_DIR/requirements.txt
 # Binding the C++ to Python
 g++ -O3 -Wall -shared -std=c++17 -fPIC \
     $(python -m pybind11 --includes) \
-    -I src/ \
+    -I $SRC_DIR/ \
     $PY_MODULE_DIR/$PY_MODULE_NAME.cpp \
     -o $PY_MODULE_DIR/$PY_MODULE_NAME$(python3-config --extension-suffix)

@@ -5,7 +5,8 @@
 
 # Names and locations
 PY_MODULE_NAME="acmFourierCUDA"
-PY_MODULE_DIR="python-PY_MODULEs"
+PY_MODULE_DIR="python-modules"
+SRC_DIR="src/cuda"
 
 # Setting Python environments
 python3 -m venv .venv
@@ -15,8 +16,8 @@ pip install -r $PY_MODULE_DIR/requirements.txt
 
 # Binding the C++ to Python
 nvcc -O3 -shared -std=c++20 \
-    src/fourier.cu \
-    -I src/ \
+    $SRC_DIR/fourier.cu \
+    -I $SRC_DIR \
     $PY_MODULE_DIR/$PY_MODULE_NAME.cpp \
     -Xcompiler "-fPIC -Wall -Werror -Wextra -O3" \
     $(python -m pybind11 --includes) \
