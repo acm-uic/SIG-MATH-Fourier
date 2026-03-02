@@ -1,9 +1,8 @@
 bin/
 .venv/
 .pytest_cache/
-tests/acmFourier
 *.so
-tests/__pycache__
+*/__pycache__
 f.py
 
 # This will be public once we run on ACM-UIC's NERV cluster

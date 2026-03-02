@@ -1,15 +1,4 @@
-#include <cuda_runtime.h>
-#include <cuda/std/complex>
-#include <cstdint>
-#include <complex>
-#include <vector>
-#include <iostream>
-#include <chrono>
-#include <iomanip>
-
-// Note we are going with double-precision complex so limited (please VERY limit) intrinsics acceleration :)
-using cudaComplex_t = cuda::std::complex<double>;
-using complex_t = std::complex<double>;
+#include "fourier-cuda.hpp"
 
 #define THREADS_PER_BLOCK 256
 
@@ -66,45 +55,6 @@ __global__ void naive_dft_kernel(cudaComplex_t* input, cudaComplex_t* output, cu
         // Storing the sum output
         output[k] = sum;
     }
-}
-
-std::vector<complex_t> naive_dft_cuda(const std::vector<complex_t>& X)
-{
-    const uint32_t N = X.size();
-    if ((N & (N-1)) != 0)
-        throw std::invalid_argument("Input size is not a power of 2");
-    if (N <= 0)
-        return {};
-
-    // Initialize device data
-    cudaComplex_t* d_input;
-    cudaComplex_t* d_output;
-    cudaMalloc(&d_input, N*sizeof(cudaComplex_t));
-    cudaMalloc(&d_output, N*sizeof(cudaComplex_t));
-    cudaMemcpy(d_input, X.data(), N*sizeof(cudaComplex_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_output, X.data(), N*sizeof(cudaComplex_t), cudaMemcpyHostToDevice);
-
-    // Kernel launch and compute on device 
-    const uint32_t n_blocks = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
-
-    cudaComplex_t* d_twiddles;
-    cudaMalloc(&d_twiddles, N*sizeof(cudaComplex_t));
-    precompute_twiddles<<<n_blocks, THREADS_PER_BLOCK>>>(d_twiddles, N);
-    cudaDeviceSynchronize();
-
-    naive_dft_kernel<<<n_blocks, THREADS_PER_BLOCK>>>(d_input, d_output, d_twiddles, N);
-    cudaDeviceSynchronize();
-
-    // Copy data back to host
-    std::vector<complex_t> output(N);
-    cudaMemcpy(output.data(), d_output, N*sizeof(complex_t), cudaMemcpyDeviceToHost);
-
-    // Free device data
-    cudaFree(d_input);
-    cudaFree(d_output);
-    cudaFree(d_twiddles);
-
-    return output;
 }
 
 /***
@@ -297,6 +247,123 @@ std::vector<complex_t> fft_pow_of_2_cuda(const std::vector<complex_t>& X)
     cudaFree(d_X);
     cudaFree(d_twiddles);
     cudaFree(d_output);
+
+    return output;
+}
+
+
+/***
+*   Inverse Fourier Transforms
+***/
+
+// Normalizing kernel 
+__global__ void normalize_inverse_transform(cudaComplex_t* X, uint32_t N)
+{
+    // Thread index checking
+    uint32_t k = blockDim.x*blockIdx.x + threadIdx.x;
+    if (k >= N)
+        return;
+
+    // Essentially just divide by N
+    X[k] /= __uint2double_rn(N);
+}
+
+std::vector<complex_t> inverse_fft_pow_of_2_cuda(const std::vector<complex_t>& X)
+{
+    // Input size handling
+    const uint32_t N = X.size();
+    if ((N & (N-1)) != 0)
+        throw std::invalid_argument("Input size is not a power of 2");
+    if (N <= 0)
+        return {};
+
+    // Initialize output
+    std::vector<complex_t> output(N);
+
+    // Calculate log_2 of the size
+    uint32_t log2N = __builtin_ctz(N);
+
+    // Kernel launch data
+    uint32_t n_blocks = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+
+    // Pre-compute twiddles factors
+    cudaComplex_t* d_twiddles;
+    cudaMalloc(&d_twiddles, N*sizeof(cudaComplex_t));
+    precompute_inverse_twiddles<<<n_blocks, THREADS_PER_BLOCK>>>(d_twiddles, N);
+    cudaDeviceSynchronize();
+
+    // Initialize device data
+    cudaComplex_t* d_X;
+    cudaComplex_t* d_output;
+    cudaMalloc(&d_X, N*sizeof(cudaComplex_t));
+    cudaMalloc(&d_output, N*sizeof(cudaComplex_t));
+    cudaMemcpy(d_X, X.data(), N*sizeof(cudaComplex_t), cudaMemcpyHostToDevice);
+
+    // Bit-reversal
+    bit_reversal_permutation_kernel<<<n_blocks, THREADS_PER_BLOCK>>>(d_X, d_output, N, log2N);
+    cudaDeviceSynchronize();
+
+    // Butterfly kernels compute
+    for (uint32_t stage = 0; stage < log2N; stage++) {
+        butterfly_kernel<<<n_blocks, THREADS_PER_BLOCK>>>(d_output, d_twiddles, N, stage);
+        cudaDeviceSynchronize();
+    }
+
+    // Normalizing inverse transforms
+    normalize_inverse_transform<<<n_blocks, THREADS_PER_BLOCK>>>(d_output, N);
+
+    // Copy results back
+    cudaMemcpy(output.data(), d_output, N*sizeof(cudaComplex_t), cudaMemcpyDeviceToHost);
+
+    // Freeing device data
+    cudaFree(d_X);
+    cudaFree(d_twiddles);
+    cudaFree(d_output);
+
+    return output;
+}
+
+// Inverse DFT
+std::vector<complex_t> inverse_dft_cuda(const std::vector<complex_t>& X)
+{
+    const uint32_t N = X.size();
+    if ((N & (N-1)) != 0)
+        throw std::invalid_argument("Input size is not a power of 2");
+    if (N <= 0)
+        return {};
+
+    // Initialize device data
+    cudaComplex_t* d_input;
+    cudaComplex_t* d_output;
+    cudaMalloc(&d_input, N*sizeof(cudaComplex_t));
+    cudaMalloc(&d_output, N*sizeof(cudaComplex_t));
+    cudaMemcpy(d_input, X.data(), N*sizeof(cudaComplex_t), cudaMemcpyHostToDevice);
+
+    // Kernel launch data
+    const uint32_t n_blocks = (N + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    const uint32_t shared_size = THREADS_PER_BLOCK * sizeof(cudaComplex_t);
+
+    // Initialize and pre-compute twiddles on device
+    cudaComplex_t* d_twiddles;
+    cudaMalloc(&d_twiddles, N*sizeof(cudaComplex_t));
+    precompute_inverse_twiddles<<<n_blocks, THREADS_PER_BLOCK>>>(d_twiddles, N);
+    cudaDeviceSynchronize();
+
+    // DFT kernel launch and compute on device 
+    dft_kernel<<<n_blocks, THREADS_PER_BLOCK, shared_size>>>(d_input, d_output, d_twiddles, N);
+    cudaDeviceSynchronize();
+
+    // Normalizing 
+    normalize_inverse_transform<<<n_blocks, THREADS_PER_BLOCK>>>(d_output, N);
+
+    // Copy data back to host
+    std::vector<complex_t> output(N);
+    cudaMemcpy(output.data(), d_output, N*sizeof(complex_t), cudaMemcpyDeviceToHost);
+
+    // Free device data
+    cudaFree(d_input);
+    cudaFree(d_output);
+    cudaFree(d_twiddles);
 
     return output;
 }
