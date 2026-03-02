@@ -12,7 +12,7 @@ run_basic: basic
 	$(BIN_DIR)/fourier
 
 # CUDA binary compilation and running
-cuda: $(SRC_DIR)/main.cu
+cuda: $(SRC_DIR)/cuda/main.cu
 	mkdir -p $(BIN_DIR)
 	nvcc -O3 -dlto -Xcompiler "-Wall -Werror -O3" -arch=native $< -o $(BIN_DIR)/fourier-cuda
 
