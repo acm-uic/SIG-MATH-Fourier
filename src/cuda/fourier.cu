@@ -71,6 +71,8 @@ __global__ void dft_kernel(cudaComplex_t* input, cudaComplex_t* output, cudaComp
     // Point index
     uint32_t tid = threadIdx.x;
     uint32_t k = blockIdx.x*blockDim.x + tid;
+    if (k >= N)
+        return;
 
     // Compute the Fourier transform of this point
     cudaComplex_t sum = cudaComplex_t(0.0, 0.0);
@@ -84,25 +86,20 @@ __global__ void dft_kernel(cudaComplex_t* input, cudaComplex_t* output, cudaComp
         __syncthreads(); // Barrier: Make sure all shared data are populated before moving on
 
         // Computing the sum with respect to this tile
-        if (k < N) {
-            for (uint32_t j = 0; ((j < blockDim.x) && (tile+j < N)); j++) {
+        for (uint32_t j = 0; j < min(blockDim.x, N - tile); j++) {
 
-                // Computing twiddle index (type conversion mess but this is just to be safe)
-                uint32_t twiddle_index = static_cast<uint32_t>((uint64_t)(k * (tile + j)) % N);
+            // Computing twiddle index (type conversion mess but this is just to be safe)
+            uint32_t twiddle_index = static_cast<uint32_t>((uint64_t)(k * (tile + j)) % N);
 
-                // Accumulate the sum using shared data and pre-computed twiddles
-                sum += shared_data[j] * twiddles[twiddle_index];
-            }
+            // Accumulate the sum using shared data and pre-computed twiddles
+            sum += shared_data[j] * twiddles[twiddle_index];
         }
 
         // Again barrier for making sure operations are completed before moving onto next tile
         __syncthreads();
     }
-
-
-    if (k < N) {
-        output[k] = sum;
-    }
+    
+    output[k] = sum;
 }
 
 // Host-side function to launch DFT kernels
