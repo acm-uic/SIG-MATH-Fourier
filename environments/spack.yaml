@@ -1,0 +1,17 @@
+# This is a Spack Environment file.
+#
+# It describes a set of packages to be installed, along with
+# configuration settings.
+
+
+# This configuration is meant for the ACM@UIC's NERV cluster
+# When installing Kokkos, it will install the specified backend (CUDA in this case)
+
+spack:
+  # add package specs to the `specs` list
+  specs:
+    - kokkos@4.7.01
+        cxxstd=20 +cuda cuda_arch=89 +wrapper +complex_align +cuda_relocatable_device_code  +cuda_uvm +cuda_ldg_intrinsic
+  view: true
+  concretizer:
+    unify: true
