@@ -6,7 +6,7 @@
 # Names and locations
 PY_MODULE_NAME="acmFourier"
 PY_MODULE_DIR="python-modules"
-SRC_DIR="src/"
+SRC_DIR="src/basic"
 
 # Setting Python environments
 python3 -m venv .venv

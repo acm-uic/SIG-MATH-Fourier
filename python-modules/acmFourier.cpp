@@ -2,7 +2,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/complex.h>
 
-#include "../src/fourier.hpp" // Hard-coding paths cuz LOL
+#include "fourier.hpp"
 
 namespace py = pybind11;
 
