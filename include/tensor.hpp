@@ -5,23 +5,17 @@
 #include <vector>
 #include <cstdint>
 
-/*
-*   Memory access layout pattern for the Tensor
-*/
-enum class Layout 
-{
-    LEFT,
-    RIGHT
-};
+// Memory access layout pattern for the Tensor
+enum class Layout {LEFT, RIGHT};
 
+// Tensor Class
 template <typename T>
 class Tensor 
 {
     public:
-
         /* Constructors */
         Tensor() {}
-        Tensor(std::vector<T> data_values, std::vector<uint32_t> shape_dimensions);
+        Tensor(std::vector<T> data_values, std::vector<uint32_t> shape);
         Tensor(std::vector<uint32_t> shape);
         
         /* Metadata */
@@ -38,14 +32,13 @@ class Tensor
         std::vector<T> extract_1d_slice(uint32_t dim, std::vector<uint32_t>& indices);
 
     private: 
-
         /* Data fields */
         std::vector<T> _data;
         std::vector<uint32_t> _strides;
         std::vector<uint32_t> _shape;
 
         /* Helper methods */
-        void compute_strides(Layout layout);
+        void compute_strides(Layout layout=Layout::RIGHT);
         uint64_t size_from_shape(std::vector<uint32_t>& shape);
         uint64_t process_indices(std::vector<uint32_t>& indices);
 };
@@ -55,9 +48,25 @@ class Tensor
 *   Constructors
 */
 template<typename T>
-Tensor<T>::Tensor(std::vector<T> data_values, std::vector<uint32_t> shape_dimensions)
+Tensor<T>::Tensor(std::vector<T> data_values, std::vector<uint32_t> shape)
+    : _data(data_values)
+    , _shape(shape)
 {
+    // Bounds checking
+    if (size_from_shape(shape) != data_values.size()) {
+        throw std::invalid_argument("Invalid shapes with data values size.");
+    }
+    // Setting strides
+    compute_strides();
+}
 
+template<typename T>
+Tensor<T>::Tensor(std::vector<uint32_t> shape)
+    : _shape(shape)
+{
+    uint64_t total_size = size_from_shape(_shape);
+     _data.resize(total_size, T() );
+    compute_strides();
 }
 
 /*
@@ -79,20 +88,22 @@ uint64_t Tensor<T>::process_indices(std::vector<uint32_t>& indices)
         
         // Index bounds check
         if (indices[k] >= _shape[k]) {
-            throw std::out_of_range("Index %d out of bounds", k);
+            throw std::out_of_range("Index " + std::to_string(k) + " out of bounds.");
         }
 
         // Update flattened index if everything is good
         flattened_index += indices[k] * _strides[k];
     }
+
+    return flattened_index;
 }
 
-// 
+// Computing the data size from shape
 template<typename T>
 uint64_t Tensor<T>::size_from_shape(std::vector<uint32_t>& shape)
 {
     // Empty shape means empty size
-    uint32_t order = 0;
+    uint32_t order = shape.size();
     if (order == 0)
         return 0;
 
@@ -108,40 +119,79 @@ uint64_t Tensor<T>::size_from_shape(std::vector<uint32_t>& shape)
 // Computing strides for the Tensor depend on the layout
 // Default layout is RIGHT-most (Row-major C layout)
 template<typename T>
-void Tensor<T>::compute_strides(Layout layout=Layout::RIGHT)
+void Tensor<T>::compute_strides(Layout layout)
 {
     // Re-configure strides based on shape
     uint32_t order = _shape.size();
-    _strides.reshape(order);
+    _strides.resize(order);
 
-    switch layout 
+    switch (layout) 
     {
         case (Layout::RIGHT):
-
             // Right layout strides
             uint64_t stride_val = 1;
-            for (uint32_t k = order - 1; k >= 0; k--) {
-                _strides.at(k) = stride_val;
-                stride_val *= _shape.at(k);
+            for (int64_t k = order - 1; k >= 0; k--) {
+                _strides[k] = stride_val;
+                stride_val *= _shape[k];
             }
 
             break;
         
         case (Layout::LEFT):
-        
             // Left layout strides
             uint64_t stride_val = 1;
             for (uint32_t k = 0; k < order; k++) {
-                _strides.at(k) = stride_val;
-                stride_val *= _shape.at(k);
+                _strides[k] = stride_val;
+                stride_val *= _shape[k];
             }
             break;
 
         default:
-            throw std::invalid_argument("Unknown Layout Pattern");
+            throw std::invalid_argument("Unknown Layout Pattern!");
             break;
     }
 }
 
+/*
+*   Exposed accessors methods
+*/
+template<typename T>
+T Tensor<T>::value_at(std::vector<uint32_t>& indices)
+{
+    unsigned int flattened_index = process_indices(indices);
+    return _data[flattened_index];
+}
+
+template<typename T>
+std::vector<T> Tensor<T>::extract_1d_slice(uint32_t dim, std::vector<uint32_t>& indices)
+{
+    // Setting up the slice
+    uint32_t slice_size = _shape[dim];
+    std::vector<T> slice(slice_size);
+
+    // Retrieve slice data
+    for (unsigned int k = 0; k < slice_size; k++) {
+        indices[dim] = k;
+        slice[k] = value_at[indices];
+    }
+
+    return slice;
+}
+
+
+/*
+*   Exposed setters
+*/
+template<typename T>
+void Tensor<T>::set_value_at(T val, std::vector<uint32_t>& indices)
+{
+
+}
+
+template<typename T>
+void Tensor<T>::set_1d_slice(uint32_t dim, std::vector<uint32_t> indices, std::vector<T>& new_values)
+{
+
+}
 
 #endif
