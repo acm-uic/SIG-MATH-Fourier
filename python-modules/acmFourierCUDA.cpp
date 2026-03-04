@@ -2,7 +2,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/complex.h>
 
-#include "../src/cuda/fourier-cuda.hpp"    // Hard-coding paths cuz LOL
+#include "fourier-cuda.hpp"
 
 namespace py = pybind11;
 
