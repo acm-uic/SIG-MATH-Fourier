@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # This is meant to be run from directory root
-# i.e. run it like `./python-modules/make-acmFourierCUDA.sh` from SIG-MATH-Fourier/ directory
+# i.e. run it like `./python-modules/make-sigMathFourierCUDA.sh` from SIG-MATH-Fourier/ directory
 
 # Names and locations
-PY_MODULE_NAME="acmFourierCUDA"
+PY_MODULE_NAME="sigMathFourierCUDA"
 PY_MODULE_DIR="python-modules"
 SRC_DIR="src/cuda"
 

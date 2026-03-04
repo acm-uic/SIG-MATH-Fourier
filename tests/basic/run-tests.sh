@@ -4,7 +4,7 @@
 # i.e. run it like `./tests/basic/run-tests.sh` from SIG-MATH-Fourier/ directory
 
 # Names of stuff
-MODULE_NAME="acmFourier"
+MODULE_NAME="sigMathFourier"
 MODULE_DIR="python-modules"
 TEST_DIR="tests/basic"
 

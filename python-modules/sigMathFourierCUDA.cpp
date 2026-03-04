@@ -6,7 +6,7 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(acmFourierCUDA, m) {
+PYBIND11_MODULE(sigMathFourierCUDA, m) {
     m.def("fft_pow_of_2_cuda", &fft_pow_of_2_cuda);
     m.def("inverse_fft_pow_of_2_cuda", &inverse_fft_pow_of_2_cuda);
     m.def("dft_cuda", &dft_cuda);
