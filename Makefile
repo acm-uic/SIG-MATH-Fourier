@@ -19,6 +19,12 @@ cuda: $(SRC_DIR)/cuda/main.cu
 run_cuda: cuda
 	$(BIN_DIR)/fourier-cuda
 
+# Detecting System's CUDA unified memory support
+uvm_support: $(SRC_DIR)/cuda/uvm-support.cu
+	mkdir -p $(BIN_DIR)
+	nvcc $< -o $(BIN_DIR)/uvm
+	$(BIN_DIR)/uvm
+
 # Clean
 clean:
 	rm -rf $(BIN_DIR)
