@@ -36,4 +36,4 @@ To compile the module, execute the `python-modules/make-<mode_bindings>.sh` scri
 
 Of course, feel free to contribute in a way you see fit via [pull-request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request). We recommend forking the repository and make pull requests from you fork.
 
-In particular, we are looking forward to exapnd the backend horizon (OpenMP, AVX, SYCL,...) of our "from-scratch" apporach and also resolving the repository issues.
+In particular, we are looking forward to expand the backend horizon (OpenMP, AVX, SYCL,...) of our "from-scratch" apporach and also resolving the repository issues.
