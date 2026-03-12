@@ -1,6 +1,7 @@
 #%%
 import numpy as np
 import matplotlib.pyplot as plt
+import sigMathFourier
 
 #%%
 # Problem parameters for the Heat equation problem
@@ -51,11 +52,11 @@ def rk4_explicit_step(u_hat, dt):
 
 solutions = np.zeros((num_t + 1, N))
 solutions[0] = initial_condition(x)
-u_hat = np.fft.fft(initial_condition(x))
+u_hat = sigMathFourier.fft_iterative_pow_of_2(initial_condition(x))
 
 for t_index in range(num_t):
     u_hat = rk4_explicit_step(u_hat, dt)
-    solutions[t_index + 1] = np.fft.ifft(u_hat).real
+    solutions[t_index + 1] = np.array(sigMathFourier.inverse_fft_iterative_pow_of_2(u_hat)).real
 
 #%%
 
@@ -98,5 +99,9 @@ ax3.set_title("Absolute Error")
 fig.colorbar(pcm, ax=ax3, label="Pointwise error")
 
 plt.tight_layout()
-plt.savefig("heat-fft.png", dpi=450)
+plt.savefig("heat-fft.png", dpi=400)
 plt.show()
+
+#%%
+print(f"Maximum pointwise error: {np.max(pt_err)}")
+print(f"Mean pointwise error: {np.mean(pt_err)}")
