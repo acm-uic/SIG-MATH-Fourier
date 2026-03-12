@@ -19,12 +19,9 @@ def boundary_condition(t):
     return 0*t
 
 #%%
-# Actual solving (should have encapsulate this into an object but oh well)
-# https://scicomp.stackexchange.com/questions/43962/what-is-the-advantage-of-using-a-particular-rk-scheme 
-
 # Temporal information
-dt = 1e-05                      # Time-step size
-n_t = int(np.ceil(T/dt))        # Numer of time-steps
+dt = 1e-05                  # Time-step size
+num_t = int(np.ceil(T/dt))  # Numer of time-steps
 
 # Physical domain
 L = x_end - x_0
@@ -52,14 +49,54 @@ def rk4_explicit_step(u_hat, dt):
     k4 = fourier_time_derivative(u_hat + k3*dt)
     return u_hat + (k1 + 2*k2 + 2*k3 + k4) * (dt / 6.0)
 
-solutions = np.zeros((n_t + 1, N))
+solutions = np.zeros((num_t + 1, N))
 solutions[0] = initial_condition(x)
 u_hat = np.fft.fft(initial_condition(x))
 
-for t_index in range(n_t):
+for t_index in range(num_t):
     u_hat = rk4_explicit_step(u_hat, dt)
     solutions[t_index + 1] = np.fft.ifft(u_hat).real
 
 #%%
 
 # Plot solutions
+from mpl_toolkits.mplot3d import Axes3D
+
+# Grid setup
+t = np.linspace(0, T, num_t + 1)
+X, TT = np.meshgrid(x, t)
+
+# Analytical solution and pointwise error
+analytic = -np.sin(np.pi * X) * np.exp(-D * (np.pi**2) * TT) # Analytical solution
+pt_err = np.abs(analytic - solutions)
+
+# Figure
+fig = plt.figure(figsize=(15,6))
+
+# Numerical solution plot
+ax1 = fig.add_subplot(131, projection="3d")
+ax1.plot_surface(X, TT, solutions,cmap="viridis")
+ax1.set_xlabel("x")
+ax1.set_ylabel("t")
+ax1.set_zlabel("u(x,t)")
+ax1.set_title("Numerical Solution with Fourier Transforms")
+
+# Analytical solution plot
+ax2 = fig.add_subplot(132, projection="3d")
+ax2.plot_surface(X, TT, analytic, cmap="viridis")
+ax2.set_xlabel("x")
+ax2.set_ylabel("t")
+ax2.set_zlabel("u(x,t)")
+ax2.set_title("Analytical Solution")
+
+# Absolute error
+ax3 = fig.add_subplot(133)
+pcm = ax3.pcolormesh(X, TT, pt_err, cmap="magma")
+ax3.set_xlabel("x")
+ax3.set_ylabel("t")
+ax3.set_title("Absolute Error")
+fig.colorbar(pcm, ax=ax3, label="Pointwise error")
+
+plt.tight_layout()
+plt.savefig("heat-fft.png", dpi=450)
+plt.show()

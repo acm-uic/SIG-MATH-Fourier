@@ -1,1 +1,1 @@
-# Application of Fourier Transforms to solve Heat equation
+# Application of Fourier Transforms to Partial Differential Equations
