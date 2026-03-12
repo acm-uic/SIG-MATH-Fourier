@@ -21,9 +21,9 @@ With native binary compilations, the source files are at `src/<mode>/` and we ha
 - `make run_cuda` (requires CUDA) will compile and run the CUDA execution binary.
 
 ### Python bindings
-The library supports Python interoperability of C++ and CUDA codes through the [pybind11](https://github.com/pybind/pybind11). The main modules for our package will be that of `sigMathFourier` for `basic` mode and `sigMathFourierCUDA` for the `CUDA` bindings. 
+The library supports Python interoperability of C++ and CUDA codes through the [pybind11](https://github.com/pybind/pybind11). The main modules for our package will be that of `sigMathFourier` for `basic` mode and `sigMathFourierCUDA` for the `CUDA` mode. 
 
-To compile the module, execute the `python-modules/make-<mode_bindings>.sh` scripts and to use it, place the resulting shared library (`.so` file) to a place where the Python interpreter can see.
+To compile the module, execute the `python-modules/make-<mode_bindings>.sh` script. And to use it, place the resulting shared library (`.so` file) to a place where the Python interpreter can see.
 
 ## Requirements
 - C++ >=20 compatible compiler (i.e. `g++` or `clang++`)
