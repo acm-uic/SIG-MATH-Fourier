@@ -2,7 +2,9 @@
 
 SRC_DIR=src
 BIN_DIR=bin
+PDE_DIR=pde
 
+###
 # Basic single-threaded fourier program compilation and running
 basic: $(SRC_DIR)/basic/main.cpp
 	mkdir -p $(BIN_DIR)
@@ -11,6 +13,7 @@ basic: $(SRC_DIR)/basic/main.cpp
 run_basic: basic
 	$(BIN_DIR)/fourier
 
+#####
 # CUDA binary compilation and running
 cuda: $(SRC_DIR)/cuda/main.cu
 	mkdir -p $(BIN_DIR)
@@ -19,6 +22,16 @@ cuda: $(SRC_DIR)/cuda/main.cu
 run_cuda: cuda
 	$(BIN_DIR)/fourier-cuda
 
+####
 # Clean
 clean:
 	rm -rf $(BIN_DIR)
+
+
+
+#####
+# PDE applications compilation
+#####
+heat_basic: $(PDE_DIR)/heat/heat-fft.cpp
+	mkdir -p $(BIN_DIR)
+	g++ $< -I $(SRC_DIR)/basic/ -O3 -flto -march=native -o $(BIN_DIR)/heat
