@@ -15,7 +15,7 @@ pip install --upgrade pip
 pip install -r $PY_MODULE_DIR/requirements.txt
 
 # Binding the C++ to Python
-g++ -O3 -Wall -shared -std=c++23 -fPIC \
+g++ -O3 -Wall -shared -std=c++20 -fPIC \
     $(python -m pybind11 --includes) \
     -I $SRC_DIR/ \
     $PY_MODULE_DIR/$PY_MODULE_NAME.cpp \
