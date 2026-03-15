@@ -34,7 +34,7 @@ clean:
 #####
 heat_basic: $(PDE_DIR)/heat/heat-fft.cpp
 	mkdir -p $(BIN_DIR)
-	g++ $< -I $(SRC_DIR)/basic/ -O3 -flto -march=native -o $(BIN_DIR)/heat
+	g++ -std=c++20 $< -I $(SRC_DIR)/basic/ -O3 -flto -march=native -o $(BIN_DIR)/heat
 
 run_heat_basic: heat_basic
 	$(BIN_DIR)/heat
