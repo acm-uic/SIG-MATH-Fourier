@@ -41,7 +41,7 @@ class Solution
         {}
 
         /* Reading solution data */
-        double operator[] (unsigned int row, unsigned int col) {
+        double operator() (unsigned int row, unsigned int col) {
             // Bounds check
             if (row > num_time_steps || col >= num_spatial_points)
                 throw std::out_of_range("Solution indexing out of range");

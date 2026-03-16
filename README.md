@@ -25,6 +25,9 @@ The library supports Python interoperability of C++ and CUDA codes through the [
 
 To compile the module, execute the `python-modules/make-<mode_bindings>.sh` script. And to use it, place the resulting shared library (`.so` file) to a place where the Python interpreter can see.
 
+### Applications to Solving Differential Equations
+We also explore applications of the Fourier Transforms numerical solutions of differential equations, as an introductory look into the world of the Spectral Methods. All of the sources pertaining to this excursions are listed at `pde/` and to compile the PDE solver engines, please see the `PDE applications` sections of the [Makefile](Makefile).
+
 ## Requirements
 - C++ >=20 compatible compiler (i.e. `g++` or `clang++`)
 - Python
