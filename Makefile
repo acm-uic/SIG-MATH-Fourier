@@ -30,7 +30,7 @@ clean:
 
 
 #####
-# PDE applications compilation
+# PDE applications
 #####
 heat_basic: $(PDE_DIR)/heat/heat-fft.cpp
 	mkdir -p $(BIN_DIR)
