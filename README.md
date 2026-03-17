@@ -1,4 +1,4 @@
-# ACM@UIC SIG-MATH Fourier transforms library
+# ACM@UIC SIG-MATH Fourier transforms project
 
 This repository is a "from-scratch" implementation of the Fourier Transforms engine that support both the basic single-threaded algorithms all the way to SIMD/SIMT (GPU) accelerations.  
 
