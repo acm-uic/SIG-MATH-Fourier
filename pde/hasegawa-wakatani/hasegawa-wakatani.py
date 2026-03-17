@@ -20,25 +20,59 @@ Parameters for the problem
 """
 # Spatial and temporal information of the problem
 Nx, Ny = 512, 512                   # Sizes along dimension of domain
-x_low, x_high = [-2*np.pi, 2*np.pi] # x-dimension rectangular bounds
-y_low, y_high = [-2*np.pi, 2*np.pi] # y-dimension rectangular bounds
+
+x_low, x_high = [-2*np.pi, 2*np.pi]     # x-dimension rectangular bounds
+y_low, y_high = [-2*np.pi, 2*np.pi]     # y-dimension rectangular bounds
+L_x, L_y = x_high-x_low, y_high-y_low   # Length of the rectangle
+
 dt = 0.005                          # Time-step size
 plot_interval = 20                  # Simulation interval before rendering
 
 # Actual coupled equations parameters
-alpha = 0.1                         # Adiabicity
+alpha = 0.1     # Adiabicity (note that this is constant i.e. this is a 2D problem)
+mu = 1.0        # Hyper-diffusion coefficient
+
+#%%
+"""
+Initial profile (condition)
+"""
+s = 2.0
+def initial_density():
+    """
+    We are considering the Gaussian initial density profile
+    n_0(x) = e^{-(x^2+y^2)/s^2}
+    """
+    pass
+
+def kappa():
+    """
+    kappa = -d/dx(ln n_0)
+    """
+    pass
 
 # TODO
 
 #%%
 """
-Grid building (build on CPU first then copy over to GPU if available)
+Dealiasing for stability
 """
-x_np = np.linspace(x_low, x_high, Nx, endpoint=False)
-y_np = np.linspace(y_low, y_high, endpoint=False)
-X_np, Y_np = np.meshgrid(x_np, y_np, indexing='ij')
+
 
 #%%
+"""
+Grid building (build on CPU first then copy over to GPU if available)
+"""
+# Physical space grid
+x_np = np.linspace(x_low, x_high, Nx, endpoint=False)
+y_np = np.linspace(y_low, y_high, endpoint=False)
+X_np, Y_np = np.meshgrid(x_np, y_np, indexing="ij")
+
+# Frequency space grid
+
+#%%
+"""
+Poisson bracket and Nonlinear Term
+"""
 def poisson_bracket():
     pass
 
@@ -53,9 +87,9 @@ def spectral_time_derivative():
 def explicit_rk4_step():
     pass
 
+# TODO
+
 #%%
 """
-Initial profile (condition)
+Main solver
 """
-
-# TODO
