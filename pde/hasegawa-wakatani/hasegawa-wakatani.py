@@ -30,6 +30,7 @@ plot_interval = 20                  # Simulation interval before rendering
 # Actual coupled equations parameters
 alpha = 0.1     # Adiabicity (note that this is constant i.e. this is a 2D problem)
 mu = 1.0        # Hyper-diffusion coefficient
+kappa = 1.0     # Background gradient
 
 #%%
 """
@@ -37,18 +38,31 @@ Grid building (build on CPU first then copy over to GPU if available)
 """
 # Physical space grid
 x_np = np.linspace(x_low, x_high, Nx, endpoint=False)
-y_np = np.linspace(y_low, y_high, endpoint=False)
+y_np = np.linspace(y_low, y_high, Ny, endpoint=False)
 X_np, Y_np = np.meshgrid(x_np, y_np, indexing="ij")
 
 # Frequency space grid
 kx_np , ky_np = np.fft.fftfreq(Nx, d=Lx/Nx) , np.fft.fftfreq(Ny, d=Ly/Ny) 
 KX_np , KY_np = np.meshgrid(kx_np, ky_np, indexing="ij")
-K_squared_np = KX_np**2 + KY_np**2
+K2_np = KX_np**2 + KY_np**2
+K4_np = (K2_np)**2
+inv_K2_np = np.where(K2_np == 0, 0.0, 1.0 / np.where(K2_np == 0, 1.0, K2_np))
+
+# 2/3 Dealiasing information
+kx_max = np.max(abs(kx_np))
+ky_max = np.max(abs(ky_np))
+dealias_np = (
+                (np.abs(KX_np) <= (2/3)*kx_max) & 
+                (np.abs(KY_np) <= (2/3)*ky_max)
+).astype(np.float64)
 
 # Upload to grid to GPU once (if available)
 KX = xp.asarray(KX_np)
 KY = xp.asarray(KY_np)
-K_SQUARED = xp.asarray(K_squared_np)
+K2 = xp.asarray(K2_np)
+K4 = xp.asarray(K4_np)
+inv_K2 = xp.asarray(inv_K2_np)
+DEALIAS = xp.asarray(dealias_np)
 
 #%%
 """
@@ -62,33 +76,32 @@ def initial_density(X,Y,s):
     """
     return xp.exp(-(X**2 + Y**2) / s**2)
 
-def kappa(X,s):
-    """
-    kappa = -d/dx(ln n_0)
-    """
-    return 2.0*X**2 / s**2
-
-# TODO
-
-#%%
-"""
-Dealiasing for stability
-"""
-
 
 #%%
 """
 Poisson bracket and Nonlinear Term
 """
-def poisson_bracket():
-    pass
+
+# Helpers for computing spectral gradients
+def dx(f): return 1j * KX * f
+def dy(f): return 1j * KY * f
+
+# Poisson bracket calculation
+def poisson_bracket(f, g):
+    """
+    Computing the psuedo-spectral Poisson-bracket of f and g (with dealiasing)
+        {f,g} = FFT[ (iFFT(f_x) * iFFT(g_y)) - (iFFT(f_y) * iFFT(g_x)) ]
+    """
+    return DEALIAS * xp.fft.fft(
+        xp.fft.ifft2(dx(f)) * xp.fft.ifft2(dy(g)) - xp.fft.ifft2(dy(f)) * xp.fft.ifft2(dx(g))
+    )
 
 #%%
 
 """
 Time derivative and stepping
 """
-def spectral_time_derivative():
+def spectral_time_derivative(zeta, n):
     pass
 
 def explicit_rk4_step():
