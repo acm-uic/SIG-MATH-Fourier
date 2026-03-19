@@ -101,13 +101,21 @@ def poisson_bracket(f, g):
 """
 Time derivative and stepping
 """
-def spectral_time_derivative(zeta, n):
+def spectral_time_derivative(vorticity, density):
     pass
 
-def explicit_rk4_step():
-    pass
+def explicit_rk4_step(vorticity, density):
 
-# TODO
+    # Runge-Kutta components
+    k1_vort, k1_dens = spectral_time_derivative(vorticity, density)
+    k2_vort, k2_dens = spectral_time_derivative(vorticity + 0.5*k1_vort*dt, density + 0.5*k1_dens*dt)
+    k3_vort, k3_dens = spectral_time_derivative(vorticity + 0.5*k2_vort*dt, density + 0.5*k2_dens*dt)
+    k4_vort, k4_dens = spectral_time_derivative(vorticity + k3_vort*dt, density + k3_dens*dt)
+
+    # RK4-step (with dealiasing)
+    vort_update = DEALIAS * (k1_vort + 2.0*k2_vort + 2.0*k3_vort + k4_vort)*(dt/6.0)
+    dens_update = DEALIAS * (k1_dens + 2.0*k2_dens + 2.0*k3_dens + k4_dens)*(dt/6.0)
+    return vort_update, dens_update
 
 #%%
 """
