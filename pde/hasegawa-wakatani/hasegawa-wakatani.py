@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 try:
     import cupy as xp
     CUDA_AVAILABLE=True
-    _dummy = xp.zeros(1)    # Warm-up the gpu
     xp.cuda.Stream.null.synchronize()
     print("CUDA available with CuPy")
 except:
@@ -19,17 +18,17 @@ except:
 Parameters for the problem
 """
 # Spatial and temporal information of the problem
-Nx, Ny = 512, 512                       # Resolution of the grid: (Nx x Ny)
-x_low, x_high = [-20*np.pi, 20*np.pi]   # x-dimension rectangular bounds
-y_low, y_high = [-20*np.pi, 20*np.pi]   # y-dimension rectangular bounds
+Nx, Ny = 256, 256                       # Resolution of the grid: (Nx x Ny)
+x_low, x_high = [-10*np.pi, 10*np.pi]   # x-dimension rectangular bounds
+y_low, y_high = [-10*np.pi, 10*np.pi]   # y-dimension rectangular bounds
 Lx, Ly = x_high-x_low, y_high-y_low     # Length of the rectangle
 
-dt = 0.005                          # Time-step size
+dt = 0.001                          # Time-step size
 plot_interval = 20                  # Simulation interval before rendering
 
 # Actual coupled equations parameters
 alpha = 0.1     # Adiabicity (note that this is constant i.e. this is a 2D problem)
-mu = 1.0        # Hyper-diffusion coefficient
+mu = 1e-4       # Hyper-diffusion coefficient
 kappa = 1.0     # Background gradient
 
 #%%
@@ -42,11 +41,11 @@ y_np = np.linspace(y_low, y_high, Ny, endpoint=False)
 X_np, Y_np = np.meshgrid(x_np, y_np, indexing="ij")
 
 # Frequency space grid
-kx_np , ky_np = np.fft.fftfreq(Nx, d=Lx/Nx) , np.fft.fftfreq(Ny, d=Ly/Ny) 
+kx_np , ky_np = 2.0*pi*np.fft.fftfreq(Nx, d=Lx/Nx) , 2.0*np.pi*np.fft.fftfreq(Ny, d=Ly/Ny) 
 KX_np , KY_np = np.meshgrid(kx_np, ky_np, indexing="ij")
 K2_np = KX_np**2 + KY_np**2
 K4_np = (K2_np)**2
-inv_K2_np = np.where(K2_np == 0, 0.0, 1.0 / np.where(K2_np == 0, 1.0, K2_np))
+inv_K2_np = np.where(K2 == 0, 0.0, 1.0 / K2)
 
 # 2/3 Dealiasing information
 kx_max = np.max(abs(kx_np))
@@ -94,8 +93,9 @@ def poisson_bracket(f_hat, g_hat):
     Computing the psuedo-spectral Poisson-bracket of f and g (with dealiasing)
         {f,g} = FFT[ (iFFT(f_x) * iFFT(g_y)) - (iFFT(f_y) * iFFT(g_x)) ]
     """
-    return DEALIAS * xp.fft.fft(
-        xp.fft.ifft2(dx(f_hat)) * xp.fft.ifft2(dy(g_hat)) - xp.fft.ifft2(dy(f_hat)) * xp.fft.ifft2(dx(g_hat))
+    return DEALIAS * xp.fft.fft2(
+        xp.fft.ifft2(dx(f_hat)).real * xp.fft.ifft2(dy(g_hat)).real - 
+        xp.fft.ifft2(dy(f_hat)).real * xp.fft.ifft2(dx(g_hat)).real
     )
 
 #%%
@@ -128,7 +128,7 @@ def explicit_rk4_step(vorticity_hat, density_hat):
    # RK4-step (with dealiasing)
    vort_update = DEALIAS * (k1_vort + 2.0*k2_vort + 2.0*k3_vort + k4_vort)*(dt/6.0)
    dens_update = DEALIAS * (k1_dens + 2.0*k2_dens + 2.0*k3_dens + k4_dens)*(dt/6.0)
-   return vort_update, dens_update
+   return (vorticity_hat + vort_update), (density_hat + dens_update)
 
 #%%
 """
