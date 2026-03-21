@@ -57,6 +57,8 @@ dealias_np = (
 ).astype(np.float64)
 
 # Upload to grid to GPU once (if available)
+X = xp.asarray(X_np)
+Y = xp.asarray(Y_np)
 KX = xp.asarray(KX_np)
 KY = xp.asarray(KY_np)
 K2 = xp.asarray(K2_np)
@@ -83,17 +85,17 @@ Poisson bracket and Nonlinear Term
 """
 
 # Helpers for computing spectral gradients
-def dx(f): return 1j * KX * f
-def dy(f): return 1j * KY * f
+def dx(f_hat): return 1j * KX * f_hat
+def dy(f_hat): return 1j * KY * f_hat
 
 # Poisson bracket calculation
-def poisson_bracket(f, g):
+def poisson_bracket(f_hat, g_hat):
     """
     Computing the psuedo-spectral Poisson-bracket of f and g (with dealiasing)
         {f,g} = FFT[ (iFFT(f_x) * iFFT(g_y)) - (iFFT(f_y) * iFFT(g_x)) ]
     """
     return DEALIAS * xp.fft.fft(
-        xp.fft.ifft2(dx(f)) * xp.fft.ifft2(dy(g)) - xp.fft.ifft2(dy(f)) * xp.fft.ifft2(dx(g))
+        xp.fft.ifft2(dx(f_hat)) * xp.fft.ifft2(dy(g_hat)) - xp.fft.ifft2(dy(f_hat)) * xp.fft.ifft2(dx(g_hat))
     )
 
 #%%
@@ -101,23 +103,53 @@ def poisson_bracket(f, g):
 """
 Time derivative and stepping
 """
-def spectral_time_derivative(vorticity, density):
-    pass
+def spectral_time_derivative(vorticity_hat, density_hat):
+    """
+        Computing the resulting spectral time-gradients of the system:
+            dt_vort = alpha(phi_hat - density_hat) - mu*K_4*vortcity_hat - {phi_hat, vorticity_hat}
+            dt_dens = alpha(phi_hat - density_hat) - kappa*i*k_y*phi_hat - {phi_hat, density_hat}
+    """
+    phi_hat = -vorticity_hat * inv_K2   # Spectral stream function
+    coupling_term = alpha*(phi_hat - density_hat)
 
-def explicit_rk4_step(vorticity, density):
+    dt_vort = coupling_term - mu*K4*vorticity_hat - poisson_bracket(phi_hat, vorticity_hat)
+    dt_dense = coupling_term - poisson_bracket(phi_hat, density_hat) - kappa*dy(phi_hat)
+    return dt_vort, dt_dense
+    
 
-    # Runge-Kutta components
-    k1_vort, k1_dens = spectral_time_derivative(vorticity, density)
-    k2_vort, k2_dens = spectral_time_derivative(vorticity + 0.5*k1_vort*dt, density + 0.5*k1_dens*dt)
-    k3_vort, k3_dens = spectral_time_derivative(vorticity + 0.5*k2_vort*dt, density + 0.5*k2_dens*dt)
-    k4_vort, k4_dens = spectral_time_derivative(vorticity + k3_vort*dt, density + k3_dens*dt)
+def explicit_rk4_step(vorticity_hat, density_hat):
 
-    # RK4-step (with dealiasing)
-    vort_update = DEALIAS * (k1_vort + 2.0*k2_vort + 2.0*k3_vort + k4_vort)*(dt/6.0)
-    dens_update = DEALIAS * (k1_dens + 2.0*k2_dens + 2.0*k3_dens + k4_dens)*(dt/6.0)
-    return vort_update, dens_update
+   # Runge-Kutta components
+   k1_vort, k1_dens = spectral_time_derivative(vorticity_hat,                   density_hat)
+   k2_vort, k2_dens = spectral_time_derivative(vorticity_hat + 0.5*k1_vort*dt,  density_hat + 0.5*k1_dens*dt)
+   k3_vort, k3_dens = spectral_time_derivative(vorticity_hat + 0.5*k2_vort*dt,  density_hat + 0.5*k2_dens*dt)
+   k4_vort, k4_dens = spectral_time_derivative(vorticity_hat + k3_vort*dt,      density_hat + k3_dens*dt)
+
+   # RK4-step (with dealiasing)
+   vort_update = DEALIAS * (k1_vort + 2.0*k2_vort + 2.0*k3_vort + k4_vort)*(dt/6.0)
+   dens_update = DEALIAS * (k1_dens + 2.0*k2_dens + 2.0*k3_dens + k4_dens)*(dt/6.0)
+   return vort_update, dens_update
 
 #%%
 """
 Main solver
 """
+
+if __name__ == "__main__":
+
+    # Initializing states
+    density_hat = xp.fft.fft2(initial_density(X,Y,s))
+    vorticity_hat  = xp.zeros((Nx, Ny), dtype=complex)
+
+    # Initializing temporal information
+    t = 0.0
+    step = 0
+
+    # Infinite compute
+    try:
+        while True:
+            vorticity_hat, density_hat = explicit_rk4_step(vorticity_hat, density_hat)
+            t += dt
+            step += 1
+    except:
+        print("\nStopped.")
