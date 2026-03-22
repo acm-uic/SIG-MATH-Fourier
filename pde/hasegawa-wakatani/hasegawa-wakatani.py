@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 try:
     import cupy as xp
     CUDA_AVAILABLE=True
-    xp.cuda.Stream.null.synchronize()
     print("CUDA available with CuPy")
 except:
     import numpy as xp
@@ -41,11 +40,11 @@ y_np = np.linspace(y_low, y_high, Ny, endpoint=False)
 X_np, Y_np = np.meshgrid(x_np, y_np, indexing="ij")
 
 # Frequency space grid
-kx_np , ky_np = 2.0*pi*np.fft.fftfreq(Nx, d=Lx/Nx) , 2.0*np.pi*np.fft.fftfreq(Ny, d=Ly/Ny) 
+kx_np , ky_np = 2.0*np.pi*np.fft.fftfreq(Nx, d=Lx/Nx) , 2.0*np.pi*np.fft.fftfreq(Ny, d=Ly/Ny) 
 KX_np , KY_np = np.meshgrid(kx_np, ky_np, indexing="ij")
 K2_np = KX_np**2 + KY_np**2
 K4_np = (K2_np)**2
-inv_K2_np = np.where(K2 == 0, 0.0, 1.0 / K2)
+inv_K2_np =  np.where((K2_np == 0), 0.0, 1.0/np.where((K2_np == 0), 1.0, K2_np))
 
 # 2/3 Dealiasing information
 kx_max = np.max(abs(kx_np))
@@ -76,6 +75,12 @@ def initial_density(X,Y,s):
     n_0(x) = e^{-(x^2+y^2)/s^2}
     """
     return xp.exp(-(X**2 + Y**2) / s**2)
+
+def initial_vorticity(X,Y,s):
+    """
+    Initial vorticity profile derived from the Laplacian: vorticity = nabla^{2}(phi)
+    """
+    return (4.0*(X**2 + Y**2)/s**4 - 4.0/s**2) * xp.exp(-(X**2 + Y**2) / s**2)
 
 
 #%%
@@ -139,7 +144,7 @@ if __name__ == "__main__":
 
     # Initializing states
     density_hat = xp.fft.fft2(initial_density(X,Y,s))
-    vorticity_hat  = xp.zeros((Nx, Ny), dtype=complex)
+    vorticity_hat  = xp.fft.fft2(initial_vorticity(X,Y,s))
 
     # Initializing temporal information
     t = 0.0
