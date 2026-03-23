@@ -1,6 +1,10 @@
 #%%
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import ctypes
+import moderngl
+import moderngl_window as mglw
 
 # Importing (Num|Cu)Py aliased as xp based on systems GPU availability
 try:
@@ -134,6 +138,28 @@ def explicit_rk4_step(vorticity_hat, density_hat):
    vort_update = DEALIAS * (k1_vort + 2.0*k2_vort + 2.0*k3_vort + k4_vort)*(dt/6.0)
    dens_update = DEALIAS * (k1_dens + 2.0*k2_dens + 2.0*k3_dens + k4_dens)*(dt/6.0)
    return (vorticity_hat + vort_update), (density_hat + dens_update)
+
+
+#%%
+"""
+Color map LUTs for rendering
+"""
+
+def make_colormap_lut(colormap, n=256):
+    """
+    Return RGB colormap Look-Up-Table (LUTs) based Matplotlib's colormaps
+    """
+    # Accept either a string name or a matplotlib colormap object
+    if isinstance(colormap, str):
+        cmap = matplotlib.colormaps[colormap]
+    else:
+        cmap = colormap
+
+    # Normalized RGB scale of the colormap
+    RGB_scale = cmap(np.linspace(0, 1, n))[:,:,3]
+
+    # Scailing and returning actual RGB-values LUT
+    return (RGB_scale*255).astype(np.uint8)
 
 #%%
 """
