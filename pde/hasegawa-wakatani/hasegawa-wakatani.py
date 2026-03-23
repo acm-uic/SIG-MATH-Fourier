@@ -156,15 +156,27 @@ def make_colormap_lut(colormap, n=256):
         cmap = colormap
 
     # Normalized RGB scale of the colormap
-    RGB_scale = cmap(np.linspace(0, 1, n))[:,:,3]
+    RGBA_scale = cmap(np.linspace(0, 1, n))
 
     # Scailing and returning actual RGB-values LUT
-    return (RGB_scale*255).astype(np.uint8)
+    return (RGBA_scale*255).astype(np.uint32)
 
 #%%
 """
-Texture
+Context creation (more like wrapper) for the 2D grids rendering
 """
+
+class SimulationContext:
+
+    def __init__(self, ctx: moderngl.Context, Nx: int, Ny:int):
+        self.ctx = ctx
+        self.Nx = Nx
+        self.Ny = Ny
+
+        # Texture (32-bit floats)
+        self.texture = ctx.texture((Nx, Ny), components=4, dtype="f4")
+        self.texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+
 
 # TODO
 
