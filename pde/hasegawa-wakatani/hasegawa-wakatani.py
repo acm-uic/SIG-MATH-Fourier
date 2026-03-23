@@ -163,24 +163,42 @@ def make_colormap_lut(colormap, n=256):
 
 #%%
 """
-Main solver
+Texture
 """
 
-if __name__ == "__main__":
+# TODO
 
-    # Initializing states
-    density_hat = xp.fft.fft2(initial_density(X,Y,s))
-    vorticity_hat  = xp.fft.fft2(initial_vorticity(X,Y,s))
+#%%
+"""
+ModernGL rendering Window
+"""
+class SimulationWindow(mglw.WindowConfig):
+    
+    # Window data
+    resizable = True
+    vsync = False # For uncapped FPS
+    aspect_ratio = None
+    window_size = (1920, 1080)
 
-    # Initializing temporal information
-    t = 0.0
-    step = 0
+    # Construct the window
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-    # Infinite compute
-    try:
-        while True:
-            vorticity_hat, density_hat = explicit_rk4_step(vorticity_hat, density_hat)
-            t += dt
-            step += 1
-    except:
-        print("\nStopped.")
+        # Contexts and Shaders (TODO)
+
+        # Initalize simulation states
+        self.density_hat = xp.fft.fft2(initial_density(X,Y,s))
+        self.vorticity_hat  = xp.fft.fft2(initial_vorticity(X,Y,s))
+
+        # Initialize temporal and analytics data
+        self.t = 0.0
+        self.step = 0
+        self.FPS = 0.0
+
+
+#%%
+"""
+Main simulation rendering
+"""
+
+# TODO
