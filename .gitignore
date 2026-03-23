@@ -2,4 +2,6 @@ bin/
 .venv/
 *.so
 **/__pycache__
-f.py
+
+# Test scripts
+f*.py
