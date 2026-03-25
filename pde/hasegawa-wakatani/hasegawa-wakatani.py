@@ -145,7 +145,7 @@ def explicit_rk4_step(vorticity_hat, density_hat):
 Color map LUTs for rendering
 """
 
-def make_colormap_lut(colormap, n=256):
+def make_colormap_lut(colormap, n=256) -> xp.ndarray:
     """
     Return RGB colormap Look-Up-Table (LUTs) based Matplotlib's colormaps
     """
@@ -159,24 +159,41 @@ def make_colormap_lut(colormap, n=256):
     RGBA_scale = cmap(np.linspace(0, 1, n))
 
     # Scailing and returning actual RGB-values LUT
-    return (RGBA_scale*255).astype(np.uint32)
+    return xp.asarray((RGBA_scale*255).astype(np.uint32))
 
 #%%
 """
-Context creation (more like wrapper) for the 2D grids rendering
+Simulation Texture wrapper around context for the 2D grids rendering
 """
 
-class SimulationContext:
+class SimulationTexture:
 
-    def __init__(self, ctx: moderngl.Context, Nx: int, Ny:int):
+    def __init__(self, ctx: moderngl.Context, Nx: int, Ny:int, cmap_lut: xp.ndarray):
+
+        # Context
         self.ctx = ctx
         self.Nx = Nx
         self.Ny = Ny
+        self.cmap_lut = cmap_lut
 
         # Texture (32-bit floats)
         self.texture = ctx.texture((Nx, Ny), components=4, dtype="f4")
         self.texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
 
+        # Texture buffer
+        self.rgba_buffer = xp.empty((Nx * Ny, 4), dtype=xp.float32)
+
+    def update(self, field: xp.ndarray):
+
+        # Flatten the field's data without making new copy
+        f = field.ravel().astype(xp.float32)
+        f_max, f_min = f.max(), f.min()
+
+        # Computing corresponding indices in the Look-up-Table
+        indices = xp.clip(((f - f_min) / max(f_max - f_min, 1e-16) * 255), 0, 255).astype(xp.uint32)
+
+        # Gathering the LUT values into the buffer
+        self.rgba_buffer[:] = self.cmap_lut[indices]
 
 # TODO
 
@@ -191,12 +208,21 @@ class SimulationWindow(mglw.WindowConfig):
     vsync = False # For uncapped FPS
     aspect_ratio = None
     window_size = (1920, 1080)
+    gl_version = (4, 5) 
 
     # Construct the window
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # Contexts and Shaders (TODO)
+        # Shaders
+        self.program = self.load_program(
+            vertex_shader="shaders/turbulance.vert",
+            fragment_shader="shaders/turbulance.frag"
+        )
+
+        # Textures
+        self.texture_dens = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("seismic"))
+        self.texture_vort = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("jet"))
 
         # Initalize simulation states
         self.density_hat = xp.fft.fft2(initial_density(X,Y,s))
