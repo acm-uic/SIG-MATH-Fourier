@@ -91,7 +91,6 @@ def initial_vorticity(X,Y,s):
 """
 Poisson bracket and Nonlinear Term
 """
-
 # Helpers for computing spectral gradients
 def dx(f_hat): return 1j * KX * f_hat
 def dy(f_hat): return 1j * KY * f_hat
@@ -108,7 +107,6 @@ def poisson_bracket(f_hat, g_hat):
     )
 
 #%%
-
 """
 Time derivative and stepping
 """
@@ -144,7 +142,6 @@ def explicit_rk4_step(vorticity_hat, density_hat):
 """
 Color map LUTs for rendering
 """
-
 def make_colormap_lut(colormap, n=256) -> xp.ndarray:
     """
     Return RGB colormap Look-Up-Table (LUTs) based Matplotlib's colormaps
@@ -159,15 +156,23 @@ def make_colormap_lut(colormap, n=256) -> xp.ndarray:
     RGBA_scale = cmap(np.linspace(0, 1, n))
 
     # Scailing and returning actual RGB-values LUT
+
     return xp.asarray((RGBA_scale*255).astype(np.uint32))
+#%%
+"""
+GPU Compute-Render Interop config (CUDA for now)
+"""
+# General Macros and size information for the interop
+BYTES_PER_PIXEL = 4*4   # Note float32 is 4 bytes and we are dealing with RGBA
+
+# LibCUDA config
+libcuda = ctypes.CDLL("libcuda.so.1")
 
 #%%
 """
 Simulation Texture wrapper around context for the 2D grids rendering
 """
-
 class SimulationTexture:
-
     def __init__(self, ctx: moderngl.Context, Nx: int, Ny:int, cmap_lut: xp.ndarray):
 
         # Context
@@ -207,7 +212,7 @@ class SimulationWindow(mglw.WindowConfig):
     resizable = True
     vsync = False # For uncapped FPS
     aspect_ratio = None
-    window_size = (1920, 1080)
+    window_size = (1280, 1280/2)
     gl_version = (4, 5) 
 
     # Construct the window
@@ -233,10 +238,13 @@ class SimulationWindow(mglw.WindowConfig):
         self.step = 0
         self.FPS = 0.0
 
+    def draw(self, texture: SimulationTexture, screen_offset: tuple) -> None:
+        pass
+
 
 #%%
 """
 Main simulation rendering
 """
-
-# TODO
+if __name__ == "__main__":
+    mglw.run_window_config(SimulationWindow)
