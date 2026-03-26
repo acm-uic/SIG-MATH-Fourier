@@ -185,13 +185,18 @@ std::vector<T> Tensor<T>::extract_1d_slice(uint32_t dim, std::vector<uint32_t>& 
 template<typename T>
 void Tensor<T>::set_value_at(T val, std::vector<uint32_t>& indices)
 {
-
+    unsigned int flattened_index = process_indices(indices);
+    _data[flattened_index] = val;
 }
 
 template<typename T>
 void Tensor<T>::set_1d_slice(uint32_t dim, std::vector<uint32_t> indices, std::vector<T>& new_values)
 {
-
+    uint32_t slice_size = _shape.at(dim);
+    for (uint32_t k = 0; k < slice_size; k++) {
+        indices[dim] = k;
+        set_value_at(new_values[k], indices)
+    }
 }
 
 #endif
