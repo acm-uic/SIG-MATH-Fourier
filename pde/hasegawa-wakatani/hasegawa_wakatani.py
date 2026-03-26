@@ -1,10 +1,12 @@
 #%%
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import ctypes
 import moderngl
 import moderngl_window as mglw
+from pathlib import Path
 
 # Importing (Num|Cu)Py aliased as xp based on systems GPU availability
 try:
@@ -91,7 +93,6 @@ def initial_vorticity(X,Y,s):
 """
 Poisson bracket and Nonlinear Term
 """
-
 # Helpers for computing spectral gradients
 def dx(f_hat): return 1j * KX * f_hat
 def dy(f_hat): return 1j * KY * f_hat
@@ -108,7 +109,6 @@ def poisson_bracket(f_hat, g_hat):
     )
 
 #%%
-
 """
 Time derivative and stepping
 """
@@ -144,8 +144,7 @@ def explicit_rk4_step(vorticity_hat, density_hat):
 """
 Color map LUTs for rendering
 """
-
-def make_colormap_lut(colormap, n=256):
+def make_colormap_lut(colormap, n=256) -> xp.ndarray:
     """
     Return RGB colormap Look-Up-Table (LUTs) based Matplotlib's colormaps
     """
@@ -159,24 +158,49 @@ def make_colormap_lut(colormap, n=256):
     RGBA_scale = cmap(np.linspace(0, 1, n))
 
     # Scailing and returning actual RGB-values LUT
-    return (RGBA_scale*255).astype(np.uint32)
+
+    return xp.asarray((RGBA_scale*255).astype(np.uint32))
+#%%
+"""
+GPU Compute-Render Interop config (CUDA for now)
+"""
+# General Macros and size information for the interop
+BYTES_PER_PIXEL = 4*4   # Note float32 is 4 bytes and we are dealing with RGBA
+
+# LibCUDA config
+libcuda = ctypes.CDLL("libcuda.so.1")
 
 #%%
 """
-Context creation (more like wrapper) for the 2D grids rendering
+Simulation Texture wrapper around context for the 2D grids rendering
 """
+class SimulationTexture:
+    def __init__(self, ctx: moderngl.Context, Nx: int, Ny:int, cmap_lut: xp.ndarray):
 
-class SimulationContext:
-
-    def __init__(self, ctx: moderngl.Context, Nx: int, Ny:int):
+        # Context
         self.ctx = ctx
         self.Nx = Nx
         self.Ny = Ny
+        self.cmap_lut = cmap_lut
 
         # Texture (32-bit floats)
         self.texture = ctx.texture((Nx, Ny), components=4, dtype="f4")
         self.texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
 
+        # Texture buffer
+        self.rgba_buffer = xp.empty((Nx * Ny, 4), dtype=xp.float32)
+
+    def update(self, field: xp.ndarray):
+
+        # Flatten the field's data without making new copy
+        f = field.ravel().astype(xp.float32)
+        f_max, f_min = f.max(), f.min()
+
+        # Computing corresponding indices in the Look-up-Table
+        indices = xp.clip(((f - f_min) / max(f_max - f_min, 1e-16) * 255), 0, 255).astype(xp.uint32)
+
+        # Gathering the LUT values into the buffer
+        self.rgba_buffer[:] = self.cmap_lut[indices]
 
 # TODO
 
@@ -185,18 +209,41 @@ class SimulationContext:
 ModernGL rendering Window
 """
 class SimulationWindow(mglw.WindowConfig):
-    
     # Window data
     resizable = True
     vsync = False # For uncapped FPS
     aspect_ratio = None
-    window_size = (1920, 1080)
+    window_size = (1280, 1280/2)
+    gl_version = (4, 5)
+    resource_dir = (Path(__file__).parent).resolve()
 
     # Construct the window
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # Contexts and Shaders (TODO)
+        # Quad vertex buffer
+        quad_vertices = xp.array([
+            -1.0, -1.0, 0.0, 0.0,   # Bottom-left
+             1.0, -1.0, 1.0, 0.0,   # Bottom-right
+            -1.0,  1.0, 0.0, 1.0,   # Top-left
+             1.0,  1.0, 1.0, 1.0    # Top-right
+        ]).astype(xp.float32)
+        
+        self.vbo = self.ctx.buffer(quad_vertices.tobytes())
+
+        # Shaders
+        self.prog = self.load_program(
+            vertex_shader="shaders/turbulence.vert",
+            fragment_shader="shaders/turbulence.frag"
+        )
+
+        self.quad = self.ctx.vertex_array(
+            self.prog, self.vbo, "position_in", "uv_in"
+        )
+
+        # Textures
+        self.texture_dens = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("seismic"))
+        self.texture_vort = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("jet"))
 
         # Initalize simulation states
         self.density_hat = xp.fft.fft2(initial_density(X,Y,s))
@@ -207,10 +254,18 @@ class SimulationWindow(mglw.WindowConfig):
         self.step = 0
         self.FPS = 0.0
 
+    def draw(self, texture: SimulationTexture, screen_offset: tuple) -> None:
+        self.prog["field_texture"] = 0
+        self.prog["offset"] = screen_offset
+        self.quad.render(moderngl.TRIANGLE_STRIP)
+
+    def on_render(self) -> None:
+        pass
+
 
 #%%
 """
 Main simulation rendering
 """
-
-# TODO
+if __name__ == "__main__":
+    mglw.run_window_config(SimulationWindow)
