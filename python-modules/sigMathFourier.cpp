@@ -2,11 +2,11 @@
 #include <pybind11/stl.h>
 #include <pybind11/complex.h>
 
-#include "../src/fourier.hpp" // Hard-coding paths cuz LOL
+#include "fourier.hpp"
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(acmFourier, m) {
+PYBIND11_MODULE(sigMathFourier, m) {
     m.def("dft", &dft);
     m.def("fft_recurse", &fft_recurse);
     m.def("fft_iterative_pow_of_2", &fft_iterative_pow_of_2);

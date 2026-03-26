@@ -4,7 +4,7 @@
 # i.e. run it like `./tests/cuda/run-tests.sh` from SIG-MATH-Fourier/ directory
 
 # Names of stuff
-MODULE_NAME="acmFourierCUDA"
+MODULE_NAME="sigMathFourierCUDA"
 MODULE_DIR="python-modules"
 TEST_DIR="tests/cuda"
 

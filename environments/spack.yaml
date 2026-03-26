@@ -10,8 +10,10 @@
 spack:
   # add package specs to the `specs` list
   specs:
-    - kokkos@4.7.01
-        cxxstd=20 +cuda cuda_arch=89 +wrapper +complex_align +cuda_relocatable_device_code  +cuda_uvm +cuda_ldg_intrinsic
+    - kokkos@4.7.02
+        cxxstd=20 +cuda cuda_arch=89 +wrapper +complex_align +cuda_relocatable_device_code +cuda_uvm +cuda_ldg_intrinsic
+    - mpich@4.3.1
+        +cuda cuda_arch=89 +slurm 
   view: true
   concretizer:
     unify: true
