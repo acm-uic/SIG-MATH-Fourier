@@ -1,10 +1,12 @@
 #%%
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import ctypes
 import moderngl
 import moderngl_window as mglw
+from pathlib import Path
 
 # Importing (Num|Cu)Py aliased as xp based on systems GPU availability
 try:
@@ -207,22 +209,36 @@ class SimulationTexture:
 ModernGL rendering Window
 """
 class SimulationWindow(mglw.WindowConfig):
-    
     # Window data
     resizable = True
     vsync = False # For uncapped FPS
     aspect_ratio = None
     window_size = (1280, 1280/2)
-    gl_version = (4, 5) 
+    gl_version = (4, 5)
+    resource_dir = (Path(__file__).parent).resolve()
 
     # Construct the window
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+        # Quad vertex buffer
+        quad_vertices = xp.array([
+            -1.0, -1.0, 0.0, 0.0,   # Bottom-left
+             1.0, -1.0, 1.0, 0.0,   # Bottom-right
+            -1.0,  1.0, 0.0, 1.0,   # Top-left
+             1.0,  1.0, 1.0, 1.0    # Top-right
+        ]).astype(xp.float32)
+        
+        self.vbo = self.ctx.buffer(quad_vertices.tobytes())
+
         # Shaders
-        self.program = self.load_program(
-            vertex_shader="shaders/turbulance.vert",
-            fragment_shader="shaders/turbulance.frag"
+        self.prog = self.load_program(
+            vertex_shader="shaders/turbulence.vert",
+            fragment_shader="shaders/turbulence.frag"
+        )
+
+        self.quad = self.ctx.vertex_array(
+            self.prog, self.vbo, "position_in", "uv_in"
         )
 
         # Textures
@@ -239,6 +255,11 @@ class SimulationWindow(mglw.WindowConfig):
         self.FPS = 0.0
 
     def draw(self, texture: SimulationTexture, screen_offset: tuple) -> None:
+        self.prog["field_texture"] = 0
+        self.prog["offset"] = screen_offset
+        self.quad.render(moderngl.TRIANGLE_STRIP)
+
+    def on_render(self) -> None:
         pass
 
 
