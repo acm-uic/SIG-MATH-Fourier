@@ -7,7 +7,7 @@ import ctypes
 import moderngl
 import moderngl_window as mglw
 from pathlib import Path
-from cuda.bindings.driver import CUmemorytype, CUgraphicsRegisterFlags
+from cuda.bindings.driver import CUmemorytype, CUgraphicsRegisterFlags, CUresult
 from OpenGL.GL import GL_TEXTURE_2D
 
 # Importing (Num|Cu)Py aliased as xp based on systems GPU availability
@@ -169,6 +169,9 @@ GPU Compute-Render Interop config (CUDA for now)
 # General metadata for the interop
 BYTES_PER_PIXEL = 4*4   # Note float32 is 4 bytes and we are dealing with RGBA
 
+# Load CUDA library
+libcuda = ctypes.CDLL("libcuda.so.1")
+
 # Mirror struct for CUDA 2D data transfer: https://docs.nvidia.com/cuda/cuda-driver-api/structCUDA__MEMCPY2D__v2.html
 # Apparently, CUmemorytype resolved to int according Python binding
 class CUDA_MEMCPY2D_v2(ctypes.Structure):
@@ -191,9 +194,6 @@ class CUDA_MEMCPY2D_v2(ctypes.Structure):
         ("srcY",            ctypes.c_size_t)
     ]
 
-# LibCUDA config
-libcuda = ctypes.CDLL("libcuda.so.1")
-
 #%%
 """
 Simulation Texture wrapper around context for the 2D grids rendering
@@ -214,6 +214,8 @@ class SimulationTexture:
         # Texture buffer
         self.rgba_buffer = xp.empty((Nx * Ny, 4), dtype=xp.float32)
 
+        # TODO: Register the buffer with OpenGL
+
     def update(self, field: xp.ndarray):
 
         # Flatten the field's data without making new copy
@@ -226,7 +228,11 @@ class SimulationTexture:
         # Gathering the LUT values into the buffer
         self.rgba_buffer[:] = self.cmap_lut[indices]
 
-# TODO
+        # Make sure the buffer is flat to hand it off to CUDA
+        data = xp.ascontiguousarray(self.rgba_buffer)
+
+        # TODO: Figure out how to interop the texture and CUDA
+
 
 #%%
 """
