@@ -7,6 +7,8 @@ import ctypes
 import moderngl
 import moderngl_window as mglw
 from pathlib import Path
+from cuda.bindings.driver import CUmemorytype, CUgraphicsRegisterFlags
+from OpenGL.GL import GL_TEXTURE_2D
 
 # Importing (Num|Cu)Py aliased as xp based on systems GPU availability
 try:
@@ -164,8 +166,30 @@ def make_colormap_lut(colormap, n=256) -> xp.ndarray:
 """
 GPU Compute-Render Interop config (CUDA for now)
 """
-# General Macros and size information for the interop
+# General metadata for the interop
 BYTES_PER_PIXEL = 4*4   # Note float32 is 4 bytes and we are dealing with RGBA
+
+# Mirror struct for CUDA 2D data transfer: https://docs.nvidia.com/cuda/cuda-driver-api/structCUDA__MEMCPY2D__v2.html
+# Apparently, CUmemorytype resolved to int according Python binding
+class CUDA_MEMCPY2D_v2(ctypes.Structure):
+    _fields_ = [
+        ("Height",          ctypes.c_size_t),
+        ("WidthInBytes",    ctypes.c_size_t),
+        ("dstArray",        ctypes.c_void_p),
+        ("dstDevice",       ctypes.c_void_p),
+        ("dstHost",         ctypes.c_void_p),
+        ("dstMemoryType",   ctypes.c_int),
+        ("dstPitch",        ctypes.c_size_t), 
+        ("dstXInBytes",     ctypes.c_size_t),
+        ("dstY",            ctypes.c_size_t), 
+        ("srcArray",        ctypes.c_void_p),
+        ("srcDevice",       ctypes.c_void_p),
+        ("srcHost",         ctypes.c_void_p),
+        ("srcMemoryType",   ctypes.c_int),
+        ("srcPitch",        ctypes.c_size_t), 
+        ("srcXInBytes",     ctypes.c_size_t), 
+        ("srcY",            ctypes.c_size_t)
+    ]
 
 # LibCUDA config
 libcuda = ctypes.CDLL("libcuda.so.1")

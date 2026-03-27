@@ -1,5 +1,7 @@
 numpy
-cupy-cuda13x
 matplotlib
+cuda-python
+cupy-cuda13x
+PyOpenGL
 moderngl
 moderngl-window
