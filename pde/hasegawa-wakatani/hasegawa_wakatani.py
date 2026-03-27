@@ -169,6 +169,11 @@ GPU Compute-Render Interop config (CUDA for now)
 # General metadata for the interop
 BYTES_PER_PIXEL = 4*4   # Note float32 is 4 bytes and we are dealing with RGBA
 
+# CUDA error checking in Python
+def CUDA_CHECK(result: int, message: str) -> None:
+    if (result != CUresult.CUDA_SUCCESS):
+        raise RuntimeError(f"{message}, ERROR_CODE: {result}")
+
 # Load CUDA library
 libcuda = ctypes.CDLL("libcuda.so.1")
 
@@ -194,6 +199,7 @@ class CUDA_MEMCPY2D_v2(ctypes.Structure):
         ("srcY",            ctypes.c_size_t)
     ]
 
+
 #%%
 """
 Simulation Texture wrapper around context for the 2D grids rendering
@@ -214,7 +220,12 @@ class SimulationTexture:
         # Texture buffer
         self.rgba_buffer = xp.empty((Nx * Ny, 4), dtype=xp.float32)
 
-        # TODO: Register the buffer with OpenGL
+        # Register the buffer with OpenGL
+        self.gl_resource = ctypes.c_void_p()
+        CUDA_CHECK(libcuda.cuGraphicsGLRegisterBuffer(
+            # TODO
+        ), "cuGraphicsGLRegisterBuffer() failed")
+
 
     def update(self, field: xp.ndarray):
 
@@ -231,7 +242,27 @@ class SimulationTexture:
         # Make sure the buffer is flat to hand it off to CUDA
         data = xp.ascontiguousarray(self.rgba_buffer)
 
-        # TODO: Figure out how to interop the texture and CUDA
+        # TODO: Setting up info struct for 2D CUDA device copy
+        p = CUDA_MEMCPY2D_v2()
+        p.Height = self.Nx
+        p.WidthInBytes = self.Ny * BYTES_PER_PIXEL
+        p.dstArray
+        p.dstDevice
+        p.dstHost
+        p.dstMemoryType = CUmemorytype.CU_MEMORYTYPE_DEVICE
+        p.dstPitch
+        p.dstXInBytes
+        p.dstY
+        p.srcArray
+        p.srcDevice
+        p.srcHost
+        p.srcMemoryType = CUmemorytype.CU_MEMORYTYPE_DEVICE
+        p.srcPitch
+        p.srcXInBytes
+        p.srcY
+
+        # 
+        CUDA_CHECK(libcuda.cuMemcpy2D_v2(ctypes.byref(p)), "cuMemcpy2D_v2() failed")
 
 
 #%%
