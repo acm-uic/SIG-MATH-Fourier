@@ -7,18 +7,21 @@ import ctypes
 import moderngl
 import moderngl_window as mglw
 from pathlib import Path
-from cuda.bindings.driver import CUmemorytype, CUgraphicsRegisterFlags, CUresult
-from OpenGL.GL import GL_TEXTURE_2D
 
-# Importing (Num|Cu)Py aliased as xp based on systems GPU availability
+# Importing cuPy to check for system's CUDA availability
 try:
     import cupy as xp
-    CUDA_AVAILABLE=True
-    print("CUDA available with CuPy")
 except:
-    import numpy as xp
-    CUDA_AVAILABLE=False
-    print("CPU compute. No CUDA availability")
+    raise RuntimeError("There is no CUDA availability to run this code")
+
+from cuda.bindings.driver import (
+    cuMemcpy2D_v2,
+    CUDA_MEMCPY2D_v2,
+    CUmemorytype,
+    CUresult,
+    cuGraphicsGLRegisterBuffer,
+)
+from OpenGL.GL import GL_TEXTURE_2D
 
 #%%
 """
@@ -174,31 +177,6 @@ def CUDA_CHECK(result: int, message: str) -> None:
     if (result != CUresult.CUDA_SUCCESS):
         raise RuntimeError(f"{message}, ERROR_CODE: {result}")
 
-# Load CUDA library
-libcuda = ctypes.CDLL("libcuda.so.1")
-
-# Mirror struct for CUDA 2D data transfer: https://docs.nvidia.com/cuda/cuda-driver-api/structCUDA__MEMCPY2D__v2.html
-# Apparently, CUmemorytype resolved to int according Python binding
-class CUDA_MEMCPY2D_v2(ctypes.Structure):
-    _fields_ = [
-        ("Height",          ctypes.c_size_t),
-        ("WidthInBytes",    ctypes.c_size_t),
-        ("dstArray",        ctypes.c_void_p),
-        ("dstDevice",       ctypes.c_void_p),
-        ("dstHost",         ctypes.c_void_p),
-        ("dstMemoryType",   ctypes.c_int),
-        ("dstPitch",        ctypes.c_size_t), 
-        ("dstXInBytes",     ctypes.c_size_t),
-        ("dstY",            ctypes.c_size_t), 
-        ("srcArray",        ctypes.c_void_p),
-        ("srcDevice",       ctypes.c_void_p),
-        ("srcHost",         ctypes.c_void_p),
-        ("srcMemoryType",   ctypes.c_int),
-        ("srcPitch",        ctypes.c_size_t), 
-        ("srcXInBytes",     ctypes.c_size_t), 
-        ("srcY",            ctypes.c_size_t)
-    ]
-
 
 #%%
 """
@@ -222,7 +200,7 @@ class SimulationTexture:
 
         # Register the buffer with OpenGL
         self.gl_resource = ctypes.c_void_p()
-        CUDA_CHECK(libcuda.cuGraphicsGLRegisterBuffer(
+        CUDA_CHECK(cuGraphicsGLRegisterBuffer(
             # TODO
         ), "cuGraphicsGLRegisterBuffer() failed")
 
@@ -262,7 +240,7 @@ class SimulationTexture:
         p.srcY
 
         # 
-        CUDA_CHECK(libcuda.cuMemcpy2D_v2(ctypes.byref(p)), "cuMemcpy2D_v2() failed")
+        CUDA_CHECK(cuMemcpy2D_v2(p), "cuMemcpy2D_v2() failed")
 
 
 #%%
