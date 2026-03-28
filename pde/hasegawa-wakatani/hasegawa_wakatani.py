@@ -15,12 +15,16 @@ except:
     raise RuntimeError("There is no CUDA availability to run this code")
 
 from cuda.bindings.driver import (
+    cuMemcpy2D_v2,
     CUDA_MEMCPY2D_v2,
     CUmemorytype,
     CUresult,
     CUgraphicsRegisterFlags,
     cuGraphicsGLRegisterBuffer,
-    cuGraphicsGLRegisterImage
+    cuGraphicsGLRegisterImage,
+    cuGraphicsMapResources,
+    cuGraphicsUnmapResources,
+    cuGraphicsSubResourceGetMappedArray,
 )
 from OpenGL.GL import GL_TEXTURE_2D
 
@@ -164,7 +168,7 @@ def make_colormap_lut(colormap, n=256) -> xp.ndarray:
     RGBA_scale = cmap(np.linspace(0, 1, n))
 
     # Scailing and returning actual RGB-values LUT
-    return xp.asarray((RGBA_scale*255).astype(np.uint32))
+    return xp.asarray((RGBA_scale*255).astype(np.float32))
 
 #%%
 """
@@ -174,11 +178,9 @@ GPU Compute-Render Interop config (CUDA for now)
 BYTES_PER_PIXEL = 4*4   # Note float32 is 4 bytes and we are dealing with RGBA
 
 # CUDA error checking in Python
-def CUDA_CHECK(result, msg: str) -> None:
-    if isinstance(result, tuple):
-        result = result[0]
-    if result != CUresult.CUDA_SUCCESS:
-        raise RuntimeError(f"{msg} (CUresult={result})")
+def CUDA_CHECK(result: int, message: str) -> None:
+    if (result != CUresult.CUDA_SUCCESS):
+        raise RuntimeError(f"{message}, ERROR_CODE: {result}")
 
 #%%
 """
@@ -186,7 +188,6 @@ Simulation Texture wrapper around context for the 2D grids rendering
 """
 class SimulationTexture:
     def __init__(self, ctx: moderngl.Context, Nx: int, Ny:int, cmap_lut: xp.ndarray):
-
         # Context
         self.ctx = ctx
         self.Nx = Nx
@@ -201,15 +202,15 @@ class SimulationTexture:
         self.rgba_buffer = xp.empty((Nx * Ny, 4), dtype=xp.float32)
 
         # Register OpenGL texture with CUDA
-        CUDA_CHECK(cuGraphicsGLRegisterImage(
+        err, self.gl_resource = cuGraphicsGLRegisterImage(
             ctypes.c_uint(self.texture.glo),
             ctypes.c_uint(GL_TEXTURE_2D),
             ctypes.c_uint(CUgraphicsRegisterFlags.CU_GRAPHICS_REGISTER_FLAGS_WRITE_DISCARD) # CUDA writes only
-        ), "cuGraphicsGLRegisterImage failed")
+        )
+        CUDA_CHECK(err, "cuGraphicsGLRegisterImage failed")
 
 
     def update(self, field: xp.ndarray):
-
         # Flatten the field's data without making new copy
         f = field.ravel().astype(xp.float32)
         f_max, f_min = f.max(), f.min()
@@ -223,28 +224,35 @@ class SimulationTexture:
         # Make sure the buffer is flat to hand it off to CUDA
         data = xp.ascontiguousarray(self.rgba_buffer)
 
-        # TODO: Setting up info struct for 2D CUDA device copy
+        # Hand texture ownership from OpenGL to CUDA
+        CUDA_CHECK(cuGraphicsMapResources(1, self.gl_resource, None), "cuGraphicsMapResources failed")
+
+        # Get a writable pointer to the texture's GPU memory
+        err, cu_array = cuGraphicsSubResourceGetMappedArray(self.gl_resource, 0, 0)
+        CUDA_CHECK(err, "cuGraphicsSubResourceGetMappedArray failed")
+
+        # Setting up memory copy for flat CUDA device memory to tiled GL texture memory
         p = CUDA_MEMCPY2D_v2()
         p.Height = self.Nx
         p.WidthInBytes = self.Ny * BYTES_PER_PIXEL
-        p.dstArray
-        p.dstDevice
+        p.dstArray = cu_array
+        p.dstDevice = None
         p.dstHost = None
         p.dstMemoryType = CUmemorytype.CU_MEMORYTYPE_DEVICE
         p.dstPitch = 0
         p.dstXInBytes = 0
         p.dstY = 0
         p.srcArray = None
-        p.srcDevice
+        p.srcDevice = data.data.ptr
         p.srcHost = None
         p.srcMemoryType = CUmemorytype.CU_MEMORYTYPE_DEVICE
-        p.srcPitch
+        p.srcPitch = self.Ny * BYTES_PER_PIXEL
         p.srcXInBytes = 0
         p.srcY = 0
+        CUDA_CHECK(cuMemcpy2D_v2(p), "cuMemcpy2D_v2 failed")
 
-        # 
-        CUDA_CHECK(cuda.cuMemcpy2D_v2(p), "cuMemcpy2D_v2 failed")
-
+        # Hand texture back to OpenGL for sampling render
+        CUDA_CHECK(cuGraphicsUnmapResources(1, self.gl_resource, None))
 
 #%%
 """
