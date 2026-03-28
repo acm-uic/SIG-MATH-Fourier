@@ -5,3 +5,6 @@ cupy-cuda13x
 PyOpenGL
 moderngl
 moderngl-window
+
+# Optional modules:
+nuitka

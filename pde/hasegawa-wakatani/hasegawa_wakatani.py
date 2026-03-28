@@ -8,18 +8,19 @@ import moderngl
 import moderngl_window as mglw
 from pathlib import Path
 
-# Importing cuPy to check for system's CUDA availability
+# Check for system's CUDA availability
 try:
     import cupy as xp
 except:
     raise RuntimeError("There is no CUDA availability to run this code")
 
 from cuda.bindings.driver import (
-    cuMemcpy2D_v2,
     CUDA_MEMCPY2D_v2,
     CUmemorytype,
     CUresult,
+    CUgraphicsRegisterFlags,
     cuGraphicsGLRegisterBuffer,
+    cuGraphicsGLRegisterImage
 )
 from OpenGL.GL import GL_TEXTURE_2D
 
@@ -163,8 +164,8 @@ def make_colormap_lut(colormap, n=256) -> xp.ndarray:
     RGBA_scale = cmap(np.linspace(0, 1, n))
 
     # Scailing and returning actual RGB-values LUT
-
     return xp.asarray((RGBA_scale*255).astype(np.uint32))
+
 #%%
 """
 GPU Compute-Render Interop config (CUDA for now)
@@ -173,10 +174,11 @@ GPU Compute-Render Interop config (CUDA for now)
 BYTES_PER_PIXEL = 4*4   # Note float32 is 4 bytes and we are dealing with RGBA
 
 # CUDA error checking in Python
-def CUDA_CHECK(result: int, message: str) -> None:
-    if (result != CUresult.CUDA_SUCCESS):
-        raise RuntimeError(f"{message}, ERROR_CODE: {result}")
-
+def CUDA_CHECK(result, msg: str) -> None:
+    if isinstance(result, tuple):
+        result = result[0]
+    if result != CUresult.CUDA_SUCCESS:
+        raise RuntimeError(f"{msg} (CUresult={result})")
 
 #%%
 """
@@ -198,11 +200,12 @@ class SimulationTexture:
         # Texture buffer
         self.rgba_buffer = xp.empty((Nx * Ny, 4), dtype=xp.float32)
 
-        # Register the buffer with OpenGL
-        self.gl_resource = ctypes.c_void_p()
-        CUDA_CHECK(cuGraphicsGLRegisterBuffer(
-            # TODO
-        ), "cuGraphicsGLRegisterBuffer() failed")
+        # Register OpenGL texture with CUDA
+        CUDA_CHECK(cuGraphicsGLRegisterImage(
+            ctypes.c_uint(self.texture.glo),
+            ctypes.c_uint(GL_TEXTURE_2D),
+            ctypes.c_uint(CUgraphicsRegisterFlags.CU_GRAPHICS_REGISTER_FLAGS_WRITE_DISCARD) # CUDA writes only
+        ), "cuGraphicsGLRegisterImage failed")
 
 
     def update(self, field: xp.ndarray):
@@ -226,21 +229,21 @@ class SimulationTexture:
         p.WidthInBytes = self.Ny * BYTES_PER_PIXEL
         p.dstArray
         p.dstDevice
-        p.dstHost
+        p.dstHost = None
         p.dstMemoryType = CUmemorytype.CU_MEMORYTYPE_DEVICE
-        p.dstPitch
-        p.dstXInBytes
-        p.dstY
-        p.srcArray
+        p.dstPitch = 0
+        p.dstXInBytes = 0
+        p.dstY = 0
+        p.srcArray = None
         p.srcDevice
-        p.srcHost
+        p.srcHost = None
         p.srcMemoryType = CUmemorytype.CU_MEMORYTYPE_DEVICE
         p.srcPitch
-        p.srcXInBytes
-        p.srcY
+        p.srcXInBytes = 0
+        p.srcY = 0
 
         # 
-        CUDA_CHECK(cuMemcpy2D_v2(p), "cuMemcpy2D_v2() failed")
+        CUDA_CHECK(cuda.cuMemcpy2D_v2(p), "cuMemcpy2D_v2 failed")
 
 
 #%%
