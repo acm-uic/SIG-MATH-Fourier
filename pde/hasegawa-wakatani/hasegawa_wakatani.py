@@ -15,8 +15,8 @@ except:
     raise RuntimeError("There is no CUDA availability to run this code")
 
 from cuda.bindings.driver import (
-    cuMemcpy2D_v2,
-    CUDA_MEMCPY2D_v2,
+    cuMemcpy2D,
+    CUDA_MEMCPY2D,
     CUmemorytype,
     CUresult,
     CUgraphicsRegisterFlags,
@@ -232,7 +232,7 @@ class SimulationTexture:
         CUDA_CHECK(err, "cuGraphicsSubResourceGetMappedArray failed")
 
         # Setting up memory copy for flat CUDA device memory to tiled GL texture memory
-        p = CUDA_MEMCPY2D_v2()
+        p = CUDA_MEMCPY2D()
         p.Height = self.Nx
         p.WidthInBytes = self.Ny * BYTES_PER_PIXEL
         p.dstArray = cu_array
@@ -249,7 +249,7 @@ class SimulationTexture:
         p.srcPitch = self.Ny * BYTES_PER_PIXEL
         p.srcXInBytes = 0
         p.srcY = 0
-        CUDA_CHECK(cuMemcpy2D_v2(p), "cuMemcpy2D_v2 failed")
+        CUDA_CHECK(cuMemcpy2D(p), "cuMemcpy2D_v2 failed")
 
         # Hand texture back to OpenGL for sampling render
         CUDA_CHECK(cuGraphicsUnmapResources(1, self.gl_resource, None))
