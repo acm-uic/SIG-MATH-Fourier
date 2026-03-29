@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
-import ctypes
 import moderngl
 import moderngl_window as mglw
 from pathlib import Path
@@ -250,7 +249,7 @@ class SimulationTexture:
         p.srcPitch = self.Ny * BYTES_PER_PIXEL
         p.srcXInBytes = 0
         p.srcY = 0
-        CUDA_CHECK(cuMemcpy2D(p), "cuMemcpy2D_v2 failed")
+        CUDA_CHECK(cuMemcpy2D(p), "cuMemcpy2D failed")
 
         # Hand texture back to OpenGL for sampling render
         CUDA_CHECK(cuGraphicsUnmapResources(1, self.gl_resource, None))
