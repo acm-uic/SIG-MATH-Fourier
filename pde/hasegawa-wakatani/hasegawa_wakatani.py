@@ -25,6 +25,7 @@ from cuda.bindings.driver import (
     cuGraphicsMapResources,
     cuGraphicsUnmapResources,
     cuGraphicsSubResourceGetMappedArray,
+    cuGraphicsUnregisterResource,
 )
 from OpenGL.GL import GL_TEXTURE_2D
 
@@ -203,9 +204,9 @@ class SimulationTexture:
 
         # Register OpenGL texture with CUDA
         err, self.gl_resource = cuGraphicsGLRegisterImage(
-            ctypes.c_uint(self.texture.glo),
-            ctypes.c_uint(GL_TEXTURE_2D),
-            ctypes.c_uint(CUgraphicsRegisterFlags.CU_GRAPHICS_REGISTER_FLAGS_WRITE_DISCARD) # CUDA writes only
+            self.texture.glo,   # OpenGL Texture ID
+            GL_TEXTURE_2D,      # 2D target texture
+            CUgraphicsRegisterFlags.CU_GRAPHICS_REGISTER_FLAGS_WRITE_DISCARD # CUDA writes only
         )
         CUDA_CHECK(err, "cuGraphicsGLRegisterImage failed")
 
@@ -254,6 +255,13 @@ class SimulationTexture:
         # Hand texture back to OpenGL for sampling render
         CUDA_CHECK(cuGraphicsUnmapResources(1, self.gl_resource, None))
 
+    def release(self) -> None:
+        """
+        Texture release wrapper that also unregister the CUDA buffer
+        """
+        CUDA_CHECK(cuGraphicsUnregisterResource(self.gl_resource))
+        self.texture.release()
+
 #%%
 """
 ModernGL rendering Window
@@ -288,7 +296,7 @@ class SimulationWindow(mglw.WindowConfig):
         )
 
         self.quad = self.ctx.vertex_array(
-            self.prog, self.vbo, "position_in", "uv_in"
+            self.prog, [(self.vbo, "2f 2f", "position_in", "uv_in")]
         )
 
         # Textures
@@ -308,6 +316,13 @@ class SimulationWindow(mglw.WindowConfig):
         self.prog["field_texture"] = 0
         self.prog["offset"] = screen_offset
         self.quad.render(moderngl.TRIANGLE_STRIP)
+
+    def close(self) -> None:
+        """
+        Release texture results on exiting
+        """
+        self.texture_dens.release()
+        self.texture_vort.release()
 
     def on_render(self) -> None:
         pass
