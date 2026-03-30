@@ -30,6 +30,8 @@ class Tensor
         /* Accessors */
         T value_at(std::vector<uint32_t>& indices);
         std::vector<T> extract_1d_slice(uint32_t dim, std::vector<uint32_t>& indices);
+        T* data() { return _data.data(); }
+        const T* data() const { return _data.data(); }
 
     private: 
         /* Data fields */
@@ -172,7 +174,7 @@ std::vector<T> Tensor<T>::extract_1d_slice(uint32_t dim, std::vector<uint32_t>& 
     // Retrieve slice data
     for (unsigned int k = 0; k < slice_size; k++) {
         indices[dim] = k;
-        slice[k] = value_at[indices];
+        slice[k] = value_at(indices);
     }
 
     return slice;
