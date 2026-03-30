@@ -3,16 +3,9 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
-import moderngl
-import moderngl_window as mglw
 from pathlib import Path
 
-# Check for system's CUDA availability
-try:
-    import cupy as xp
-except:
-    raise RuntimeError("There is no CUDA availability to run this code")
-
+import cupy as xp
 from cuda.bindings.driver import (
     cuMemcpy2D,
     CUDA_MEMCPY2D,
@@ -26,6 +19,9 @@ from cuda.bindings.driver import (
     cuGraphicsSubResourceGetMappedArray,
     cuGraphicsUnregisterResource,
 )
+
+import moderngl
+import moderngl_window as mglw
 from OpenGL.GL import GL_TEXTURE_2D
 
 #%%
@@ -38,8 +34,8 @@ x_low, x_high = [-10*np.pi, 10*np.pi]   # x-dimension rectangular bounds
 y_low, y_high = [-10*np.pi, 10*np.pi]   # y-dimension rectangular bounds
 Lx, Ly = x_high-x_low, y_high-y_low     # Length of the rectangle
 
-dt = 0.001                          # Time-step size
-plot_interval = 20                  # Simulation interval before rendering
+dt = 0.01                          # Time-step size
+plot_interval = 1                  # Simulation interval before rendering
 
 # Actual coupled equations parameters
 alpha = 0.1     # Adiabicity (note that this is constant i.e. this is a 2D problem)
@@ -137,7 +133,6 @@ def spectral_time_derivative(vorticity_hat, density_hat):
     
 
 def explicit_rk4_step(vorticity_hat, density_hat):
-
    # Runge-Kutta components
    k1_vort, k1_dens = spectral_time_derivative(vorticity_hat,                   density_hat)
    k2_vort, k2_dens = spectral_time_derivative(vorticity_hat + 0.5*k1_vort*dt,  density_hat + 0.5*k1_dens*dt)
@@ -309,8 +304,8 @@ class SimulationWindow(mglw.WindowConfig):
         )
 
         # Textures
-        self.texture_dens = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("seismic"))
         self.texture_vort = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("jet"))
+        self.texture_dens = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("bwr"))
 
         # Initalize simulation states
         self.density_hat = xp.fft.fft2(initial_density(X,Y,s))
@@ -355,7 +350,7 @@ class SimulationWindow(mglw.WindowConfig):
         self.wnd.title = (
             f"Hasegawa-Wakatani Turbulence | Simulation time: {self.t:.3f} | "
             f"Vorticity range: [{vort_min:.3f}, {vort_max:.3f}] | Density range: [{dens_min:.3f}, {dens_max:.3f}] | "
-            f"FPS: {1.0/frametime:.1f} "
+            f"FPS: {1.0/frametime:.1f} | Total runtime: {time:.2f}"
         )
 
 #%%
