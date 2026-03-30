@@ -33,7 +33,7 @@ from OpenGL.GL import GL_TEXTURE_2D
 Parameters for the problem
 """
 # Spatial and temporal information of the problem
-Nx, Ny = 256, 256                       # Resolution of the grid: (Nx x Ny)
+Nx, Ny = 512, 512                       # Resolution of the grid: (Nx x Ny)
 x_low, x_high = [-10*np.pi, 10*np.pi]   # x-dimension rectangular bounds
 y_low, y_high = [-10*np.pi, 10*np.pi]   # y-dimension rectangular bounds
 Lx, Ly = x_high-x_low, y_high-y_low     # Length of the rectangle
@@ -164,11 +164,9 @@ def make_colormap_lut(colormap, n=256) -> xp.ndarray:
     else:
         cmap = colormap
 
-    # Normalized RGB scale of the colormap
+    # Normalized RGB scale of the colormap and store on GPU
     RGBA_scale = cmap(np.linspace(0, 1, n))
-
-    # Scailing and returning actual RGB-values LUT
-    return xp.asarray((RGBA_scale*255).astype(np.float32))
+    return xp.asarray(RGBA_scale.astype(np.float32))
 
 #%%
 """
@@ -202,6 +200,10 @@ class SimulationTexture:
         # Texture (32-bit floats)
         self.texture = ctx.texture((Nx, Ny), components=4, dtype="f4")
         self.texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+
+        # Just a precaution
+        self.texture.repeat_x = False
+        self.texture.repeat_y = False
 
         # Texture buffer
         self.rgba_buffer = xp.empty((Nx * Ny, 4), dtype=xp.float32)
@@ -259,6 +261,9 @@ class SimulationTexture:
         # Hand texture back to OpenGL for sampling render
         CUDA_CHECK(cuGraphicsUnmapResources(1, self.gl_resource, None), "cuGraphicsUnmapResources failed")
 
+        # Return min-max value pairs for analytics
+        return f_min, f_max
+
     def release(self) -> None:
         """
         Texture release wrapper that also unregister the CUDA buffer
@@ -314,9 +319,9 @@ class SimulationWindow(mglw.WindowConfig):
         # Initialize temporal and analytics data
         self.t = 0.0
         self.step = 0
-        self.FPS = 0.0
 
     def draw(self, texture: SimulationTexture, screen_offset: tuple) -> None:
+        texture.texture.use(location=0)
         self.prog["field_texture"] = 0
         self.prog["offset"] = screen_offset
         self.quad.render(moderngl.TRIANGLE_STRIP)
@@ -328,9 +333,30 @@ class SimulationWindow(mglw.WindowConfig):
         self.texture_dens.release()
         self.texture_vort.release()
 
-    def on_render(self) -> None:
-        pass
+    def on_render(self, time: float, frametime: float) -> None:
+        # Wiping previous screen
+        self.ctx.clear(0.0, 0.0, 0.0)
 
+        # Time-step computing until plotting
+        for _ in range(plot_interval):
+            self.vorticity_hat, self.density_hat = explicit_rk4_step(self.vorticity_hat, self.density_hat)
+            self.t += dt
+            self.step += 1
+        
+        # Update the texture based on the physical space values of the fields
+        vort_min, vort_max = self.texture_vort.update(xp.fft.ifft2(self.vorticity_hat).real)
+        dens_min, dens_max = self.texture_dens.update(xp.fft.ifft2(self.density_hat).real)
+
+        # Draw updated field
+        self.draw(self.texture_vort, (0,0)) # VORTICITY on the LEFT
+        self.draw(self.texture_dens, (1,0)) # DENSITY on the RIGHT
+
+        # Crude analytics on the title bar
+        self.wnd.title = (
+            f"Hasegawa-Wakatani Turbulence | Simulation time: {self.t:.3f} | "
+            f"Vorticity range: [{vort_min:.3f}, {vort_max:.3f}] | Density range: [{dens_min:.3f}, {dens_max:.3f}] | "
+            f"FPS: {1.0/frametime:.1f} "
+        )
 
 #%%
 """
