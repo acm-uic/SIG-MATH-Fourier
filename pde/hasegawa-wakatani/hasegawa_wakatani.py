@@ -12,7 +12,6 @@ from cuda.bindings.driver import (
     CUmemorytype,
     CUresult,
     CUgraphicsRegisterFlags,
-    cuGraphicsGLRegisterBuffer,
     cuGraphicsGLRegisterImage,
     cuGraphicsMapResources,
     cuGraphicsUnmapResources,
@@ -23,6 +22,22 @@ from cuda.bindings.driver import (
 import moderngl
 import moderngl_window as mglw
 from OpenGL.GL import GL_TEXTURE_2D
+
+# Windows configuration
+import os
+import sys
+if (os.name == "nt"):
+    # CUDA path configuration
+    CUDA_VERSION = 13.2   # Change this to ther Windows verion
+    cuda_path = fr"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v{CUDA_VERSION}\bin\x64"
+
+    # Validate and add the valid CUDA path
+    if (os.path.exists(cuda_path)):
+        os.add_dll_directory(cuda_path)
+        os.environ["PATH"] = cuda_path + os.pathsep + os.environ["PATH"]
+    else:
+        print("Invalid Windows CUDA path! Terminating!")
+        sys.exit(1)
 
 #%%
 """
@@ -350,7 +365,7 @@ class SimulationWindow(mglw.WindowConfig):
         self.wnd.title = (
             f"Hasegawa-Wakatani Turbulence | Simulation time: {self.t:.3f} | "
             f"Vorticity range: [{vort_min:.3f}, {vort_max:.3f}] | Density range: [{dens_min:.3f}, {dens_max:.3f}] | "
-            f"FPS: {1.0/frametime:.1f} | Total runtime: {time:.2f}"
+            f"FPS: {1.0/(frametime+1e-16):.1f} | Total runtime: {time:.2f}"
         )
 
 #%%
