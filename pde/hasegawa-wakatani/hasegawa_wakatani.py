@@ -3,27 +3,37 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
-import ctypes
 import moderngl
 import moderngl_window as mglw
 from pathlib import Path
 
-# Importing (Num|Cu)Py aliased as xp based on systems GPU availability
+# Check for system's CUDA availability
 try:
     import cupy as xp
-    CUDA_AVAILABLE=True
-    print("CUDA available with CuPy")
 except:
-    import numpy as xp
-    CUDA_AVAILABLE=False
-    print("CPU compute. No CUDA availability")
+    raise RuntimeError("There is no CUDA availability to run this code")
+
+from cuda.bindings.driver import (
+    cuMemcpy2D,
+    CUDA_MEMCPY2D,
+    CUmemorytype,
+    CUresult,
+    CUgraphicsRegisterFlags,
+    cuGraphicsGLRegisterBuffer,
+    cuGraphicsGLRegisterImage,
+    cuGraphicsMapResources,
+    cuGraphicsUnmapResources,
+    cuGraphicsSubResourceGetMappedArray,
+    cuGraphicsUnregisterResource,
+)
+from OpenGL.GL import GL_TEXTURE_2D
 
 #%%
 """
 Parameters for the problem
 """
 # Spatial and temporal information of the problem
-Nx, Ny = 256, 256                       # Resolution of the grid: (Nx x Ny)
+Nx, Ny = 512, 512                       # Resolution of the grid: (Nx x Ny)
 x_low, x_high = [-10*np.pi, 10*np.pi]   # x-dimension rectangular bounds
 y_low, y_high = [-10*np.pi, 10*np.pi]   # y-dimension rectangular bounds
 Lx, Ly = x_high-x_low, y_high-y_low     # Length of the rectangle
@@ -154,21 +164,26 @@ def make_colormap_lut(colormap, n=256) -> xp.ndarray:
     else:
         cmap = colormap
 
-    # Normalized RGB scale of the colormap
+    # Normalized RGB scale of the colormap and store on GPU
     RGBA_scale = cmap(np.linspace(0, 1, n))
+    return xp.asarray(RGBA_scale.astype(np.float32))
 
-    # Scailing and returning actual RGB-values LUT
-
-    return xp.asarray((RGBA_scale*255).astype(np.uint32))
 #%%
 """
 GPU Compute-Render Interop config (CUDA for now)
 """
-# General Macros and size information for the interop
+# General metadata for the interop
 BYTES_PER_PIXEL = 4*4   # Note float32 is 4 bytes and we are dealing with RGBA
 
-# LibCUDA config
-libcuda = ctypes.CDLL("libcuda.so.1")
+# CUDA error checking in Python
+def CUDA_CHECK(result: int, message: str) -> None:
+    # Make sure to unwrap the case of tuple returns
+    if (isinstance(result, tuple)):
+        result = result[0]
+
+    # Actual error checks
+    if (result != CUresult.CUDA_SUCCESS):
+        raise RuntimeError(f"{message}, ERROR_CODE: {result}")
 
 #%%
 """
@@ -176,7 +191,6 @@ Simulation Texture wrapper around context for the 2D grids rendering
 """
 class SimulationTexture:
     def __init__(self, ctx: moderngl.Context, Nx: int, Ny:int, cmap_lut: xp.ndarray):
-
         # Context
         self.ctx = ctx
         self.Nx = Nx
@@ -187,11 +201,23 @@ class SimulationTexture:
         self.texture = ctx.texture((Nx, Ny), components=4, dtype="f4")
         self.texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
 
+        # Just a precaution
+        self.texture.repeat_x = False
+        self.texture.repeat_y = False
+
         # Texture buffer
         self.rgba_buffer = xp.empty((Nx * Ny, 4), dtype=xp.float32)
 
-    def update(self, field: xp.ndarray):
+        # Register OpenGL texture with CUDA
+        err, self.gl_resource = cuGraphicsGLRegisterImage(
+            self.texture.glo,   # OpenGL Texture ID
+            GL_TEXTURE_2D,      # 2D target texture
+            CUgraphicsRegisterFlags.CU_GRAPHICS_REGISTER_FLAGS_WRITE_DISCARD # CUDA writes only
+        )
+        CUDA_CHECK(err, "cuGraphicsGLRegisterImage failed")
 
+
+    def update(self, field: xp.ndarray):
         # Flatten the field's data without making new copy
         f = field.ravel().astype(xp.float32)
         f_max, f_min = f.max(), f.min()
@@ -202,7 +228,48 @@ class SimulationTexture:
         # Gathering the LUT values into the buffer
         self.rgba_buffer[:] = self.cmap_lut[indices]
 
-# TODO
+        # Make sure the buffer is flat to hand it off to CUDA
+        data = xp.ascontiguousarray(self.rgba_buffer)
+
+        # Hand texture ownership from OpenGL to CUDA
+        CUDA_CHECK(cuGraphicsMapResources(1, self.gl_resource, None), "cuGraphicsMapResources failed")
+
+        # Get a writable pointer to the texture's GPU memory
+        err, cu_array = cuGraphicsSubResourceGetMappedArray(self.gl_resource, 0, 0)
+        CUDA_CHECK(err, "cuGraphicsSubResourceGetMappedArray failed")
+
+        # Setting up memory copy for flat CUDA device memory to tiled GL texture memory
+        p = CUDA_MEMCPY2D()
+        p.Height = self.Nx
+        p.WidthInBytes = self.Ny * BYTES_PER_PIXEL
+        p.dstArray = cu_array
+        p.dstDevice = None
+        p.dstHost = None
+        p.dstMemoryType = CUmemorytype.CU_MEMORYTYPE_ARRAY
+        p.dstPitch = 0
+        p.dstXInBytes = 0
+        p.dstY = 0
+        p.srcArray = None
+        p.srcDevice = data.data.ptr
+        p.srcHost = None
+        p.srcMemoryType = CUmemorytype.CU_MEMORYTYPE_DEVICE
+        p.srcPitch = self.Ny * BYTES_PER_PIXEL
+        p.srcXInBytes = 0
+        p.srcY = 0
+        CUDA_CHECK(cuMemcpy2D(p), "cuMemcpy2D failed")
+
+        # Hand texture back to OpenGL for sampling render
+        CUDA_CHECK(cuGraphicsUnmapResources(1, self.gl_resource, None), "cuGraphicsUnmapResources failed")
+
+        # Return min-max value pairs for analytics
+        return f_min, f_max
+
+    def release(self) -> None:
+        """
+        Texture release wrapper that also unregister the CUDA buffer
+        """
+        CUDA_CHECK(cuGraphicsUnregisterResource(self.gl_resource), "cuGraphicsUnregisterResource failed")
+        self.texture.release()
 
 #%%
 """
@@ -238,7 +305,7 @@ class SimulationWindow(mglw.WindowConfig):
         )
 
         self.quad = self.ctx.vertex_array(
-            self.prog, self.vbo, "position_in", "uv_in"
+            self.prog, [(self.vbo, "2f 2f", "position_in", "uv_in")]
         )
 
         # Textures
@@ -252,16 +319,44 @@ class SimulationWindow(mglw.WindowConfig):
         # Initialize temporal and analytics data
         self.t = 0.0
         self.step = 0
-        self.FPS = 0.0
 
     def draw(self, texture: SimulationTexture, screen_offset: tuple) -> None:
+        texture.texture.use(location=0)
         self.prog["field_texture"] = 0
         self.prog["offset"] = screen_offset
         self.quad.render(moderngl.TRIANGLE_STRIP)
 
-    def on_render(self) -> None:
-        pass
+    def close(self) -> None:
+        """
+        Release texture results on exiting
+        """
+        self.texture_dens.release()
+        self.texture_vort.release()
 
+    def on_render(self, time: float, frametime: float) -> None:
+        # Wiping previous screen
+        self.ctx.clear(0.0, 0.0, 0.0)
+
+        # Time-step computing until plotting
+        for _ in range(plot_interval):
+            self.vorticity_hat, self.density_hat = explicit_rk4_step(self.vorticity_hat, self.density_hat)
+            self.t += dt
+            self.step += 1
+        
+        # Update the texture based on the physical space values of the fields
+        vort_min, vort_max = self.texture_vort.update(xp.fft.ifft2(self.vorticity_hat).real)
+        dens_min, dens_max = self.texture_dens.update(xp.fft.ifft2(self.density_hat).real)
+
+        # Draw updated field
+        self.draw(self.texture_vort, (0,0)) # VORTICITY on the LEFT
+        self.draw(self.texture_dens, (1,0)) # DENSITY on the RIGHT
+
+        # Crude analytics on the title bar
+        self.wnd.title = (
+            f"Hasegawa-Wakatani Turbulence | Simulation time: {self.t:.3f} | "
+            f"Vorticity range: [{vort_min:.3f}, {vort_max:.3f}] | Density range: [{dens_min:.3f}, {dens_max:.3f}] | "
+            f"FPS: {1.0/frametime:.1f} "
+        )
 
 #%%
 """
