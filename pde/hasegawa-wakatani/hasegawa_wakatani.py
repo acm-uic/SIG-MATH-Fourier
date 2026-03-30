@@ -179,6 +179,11 @@ BYTES_PER_PIXEL = 4*4   # Note float32 is 4 bytes and we are dealing with RGBA
 
 # CUDA error checking in Python
 def CUDA_CHECK(result: int, message: str) -> None:
+    # Make sure to unwrap the case of tuple returns
+    if (isinstance(result, tuple)):
+        result = result[0]
+
+    # Actual error checks
     if (result != CUresult.CUDA_SUCCESS):
         raise RuntimeError(f"{message}, ERROR_CODE: {result}")
 
@@ -238,7 +243,7 @@ class SimulationTexture:
         p.dstArray = cu_array
         p.dstDevice = None
         p.dstHost = None
-        p.dstMemoryType = CUmemorytype.CU_MEMORYTYPE_DEVICE
+        p.dstMemoryType = CUmemorytype.CU_MEMORYTYPE_ARRAY
         p.dstPitch = 0
         p.dstXInBytes = 0
         p.dstY = 0
@@ -252,13 +257,13 @@ class SimulationTexture:
         CUDA_CHECK(cuMemcpy2D(p), "cuMemcpy2D failed")
 
         # Hand texture back to OpenGL for sampling render
-        CUDA_CHECK(cuGraphicsUnmapResources(1, self.gl_resource, None))
+        CUDA_CHECK(cuGraphicsUnmapResources(1, self.gl_resource, None), "cuGraphicsUnmapResources failed")
 
     def release(self) -> None:
         """
         Texture release wrapper that also unregister the CUDA buffer
         """
-        CUDA_CHECK(cuGraphicsUnregisterResource(self.gl_resource))
+        CUDA_CHECK(cuGraphicsUnregisterResource(self.gl_resource), "cuGraphicsUnregisterResource failed")
         self.texture.release()
 
 #%%
