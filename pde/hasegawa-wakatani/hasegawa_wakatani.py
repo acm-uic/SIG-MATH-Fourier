@@ -186,7 +186,7 @@ GPU Compute-Render Interop config (CUDA for now)
 BYTES_PER_PIXEL = 4*4   # Note float32 is 4 bytes and we are dealing with RGBA
 
 # CUDA error checking in Python
-def CUDA_CHECK(result: int, message: str) -> None:
+def CUDA_CHECK(result: CUresult, message: str) -> None:
     # Make sure to unwrap the case of tuple returns
     if (isinstance(result, tuple)):
         result = result[0]
@@ -233,7 +233,8 @@ class SimulationTexture:
         f_max, f_min = f.max(), f.min()
 
         # Computing corresponding indices in the Look-up-Table
-        indices = xp.clip(((f - f_min) / max(f_max - f_min, 1e-16) * 255), 0, 255).astype(xp.uint32)
+        scale = (self.cmap_lut.shape[0]) - 1
+        indices = xp.clip(((f - f_min) / max(f_max - f_min, 1e-16) * scale), 0, scale).astype(xp.uint32)
 
         # Gathering the LUT values into the buffer
         self.rgba_buffer[:] = self.cmap_lut[indices]
@@ -319,8 +320,8 @@ class SimulationWindow(mglw.WindowConfig):
         )
 
         # Textures
-        self.texture_vort = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("jet"))
-        self.texture_dens = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("bwr"))
+        self.texture_vort = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("jet", n=8192*2))
+        self.texture_dens = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("viridis", n=8192*2))
 
         # Initalize simulation states
         self.density_hat = xp.fft.fft2(initial_density(X,Y,s))
@@ -365,7 +366,7 @@ class SimulationWindow(mglw.WindowConfig):
         self.wnd.title = (
             f"Hasegawa-Wakatani Turbulence | Simulation time: {self.t:.3f} | "
             f"Vorticity range: [{vort_min:.3f}, {vort_max:.3f}] | Density range: [{dens_min:.3f}, {dens_max:.3f}] | "
-            f"FPS: {1.0/(frametime+1e-16):.1f} | Total runtime: {time:.2f}"
+            f"FPS: {self.timer.fps:.1f} | Total runtime: {time:.2f}"
         )
 
 #%%
