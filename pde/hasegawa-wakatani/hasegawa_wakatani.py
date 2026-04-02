@@ -57,6 +57,12 @@ alpha = 0.1     # Adiabicity (note that this is constant i.e. this is a 2D probl
 mu = 1e-4       # Hyper-diffusion coefficient
 kappa = 1.0     # Background gradient
 
+# Extraneous params processing
+if (Nx != Ny):
+    min_N = min(Nx, Ny)
+    print(f"Currently having problems with non-squared resolutions! Default to lower {min_N} x {min_N} grid discretization\n")
+    Nx, Ny = min_N, min_N
+
 #%%
 """
 Grid building (build on CPU first then copy over to GPU if available)
@@ -159,7 +165,6 @@ def explicit_rk4_step(vorticity_hat, density_hat):
    dens_update = DEALIAS * (k1_dens + 2.0*k2_dens + 2.0*k3_dens + k4_dens)*(dt/6.0)
    return (vorticity_hat + vort_update), (density_hat + dens_update)
 
-
 #%%
 """
 Color map LUTs for rendering
@@ -253,20 +258,17 @@ class SimulationTexture:
         p = CUDA_MEMCPY2D()
         p.Height = self.Nx
         p.WidthInBytes = self.Ny * BYTES_PER_PIXEL
-        p.dstArray = cu_array
-        p.dstDevice = None
-        p.dstHost = None
-        p.dstMemoryType = CUmemorytype.CU_MEMORYTYPE_ARRAY
-        p.dstPitch = 0
-        p.dstXInBytes = 0
-        p.dstY = 0
-        p.srcArray = None
-        p.srcDevice = data.data.ptr
-        p.srcHost = None
-        p.srcMemoryType = CUmemorytype.CU_MEMORYTYPE_DEVICE
         p.srcPitch = self.Ny * BYTES_PER_PIXEL
-        p.srcXInBytes = 0
-        p.srcY = 0
+        p.dstArray = cu_array
+        p.srcDevice = data.data.ptr
+        p.srcMemoryType = CUmemorytype.CU_MEMORYTYPE_DEVICE
+        p.dstMemoryType = CUmemorytype.CU_MEMORYTYPE_ARRAY
+        # Unused fields
+        p.dstPitch = 0; p.dstXInBytes = 0; p.dstY = 0
+        p.srcXInBytes = 0; p.srcY = 0
+        p.srcArray = None; p.srcHost = None; p.dstDevice = None; p.dstHost = None
+
+        # Perform the copy
         CUDA_CHECK(cuMemcpy2D(p), "cuMemcpy2D failed")
 
         # Hand texture back to OpenGL for sampling render
