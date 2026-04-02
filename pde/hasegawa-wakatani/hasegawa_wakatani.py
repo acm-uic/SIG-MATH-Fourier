@@ -57,6 +57,12 @@ alpha = 0.1     # Adiabicity (note that this is constant i.e. this is a 2D probl
 mu = 1e-4       # Hyper-diffusion coefficient
 kappa = 1.0     # Background gradient
 
+# Extraneous params processing
+if (Nx != Ny):
+    min_N = min(Nx, Ny)
+    print(f"Currently having problems with non-squared resolutions! Default to lower {min_N} x {min_N} grid discretization\n")
+    Nx, Ny = min_N, min_N
+
 #%%
 """
 Grid building (build on CPU first then copy over to GPU if available)
@@ -159,36 +165,6 @@ def explicit_rk4_step(vorticity_hat, density_hat):
    dens_update = DEALIAS * (k1_dens + 2.0*k2_dens + 2.0*k3_dens + k4_dens)*(dt/6.0)
    return (vorticity_hat + vort_update), (density_hat + dens_update)
 
-def dormand_prince_step(vorticity_hat, density_hat):
-    k1_vort, k1_dens = spectral_time_derivative(vorticity_hat, density_hat)
-    k2_vort, k2_dens = spectral_time_derivative(vorticity_hat + 0.2*k1_vort*dt, density_hat + 0.2*k1_dens*dt)
-    k3_vort, k3_dens = spectral_time_derivative(
-        vorticity_hat + (3/10*k1_vort + 9/40*k2_vort)*dt, 
-        density_hat + (3/10*k1_dens + 9/40*k2_dens)*dt
-    )
-    k4_vort, k4_dens = spectral_time_derivative(
-        vorticity_hat + (44/45*k1_vort - 56/15*k2_vort + 32/9*k3_vort)*dt, 
-        density_hat + (44/45*k1_dens - 56/15*k2_dens + 32/9*k3_dens)*dt, 
-    )
-    k5_vort, k5_dens = spectral_time_derivative(
-        vorticity_hat + (19372/6561*k1_vort - 25360/2187*k2_vort + 64448/6561*k3_vort - 212/729*k4_vort)*dt,
-        density_hat + (19372/6561*k1_dens - 25360/2187*k2_dens + 64448/6561*k3_dens - 212/729*k4_dens)*dt
-    )
-    k6_vort, k6_dens = spectral_time_derivative(
-        vorticity_hat + (9017/3168*k1_vort - 355/33*k2_vort - 46732/5247*k3_vort + 49/176*k4_vort - 5103/18656*k5_vort)*dt,
-        density_hat + (9017/3168*k1_dens - 355/33*k2_dens - 46732/5247*k3_dens + 49/176*k4_dens - 5103/18656*k5_dens)*dt
-    )
-    k7_vort, k7_dens = spectral_time_derivative(
-        vorticity_hat + (35/384*k1_vort + 500/1113*k3_vort + 125/192*k4_vort - 2187/6784*k5_vort + 11/84*k6_vort)*dt,
-        density_hat + (35/384*k1_dens + 500/1113*k3_dens + 125/192*k4_dens - 2187/6784*k5_dens + 11/84*k6_dens)*dt
-    )
-
-    vort_update = DEALIAS*(5179/57600*k1_vort + 7571/16695*k3_vort + 393/640*k4_vort - 92097/339200*k5_vort + 187/2100*k6_vort + 1/40*k7_vort)*dt
-    dens_update = DEALIAS*(5179/57600*k1_dens + 7571/16695*k3_dens + 393/640*k4_dens - 92097/339200*k5_dens + 187/2100*k6_dens + 1/40*k7_dens)*dt
-
-    return vorticity_hat+vort_update, density_hat+dens_update
-
-
 #%%
 """
 Color map LUTs for rendering
@@ -282,20 +258,17 @@ class SimulationTexture:
         p = CUDA_MEMCPY2D()
         p.Height = self.Nx
         p.WidthInBytes = self.Ny * BYTES_PER_PIXEL
-        p.dstArray = cu_array
-        p.dstDevice = None
-        p.dstHost = None
-        p.dstMemoryType = CUmemorytype.CU_MEMORYTYPE_ARRAY
-        p.dstPitch = 0
-        p.dstXInBytes = 0
-        p.dstY = 0
-        p.srcArray = None
-        p.srcDevice = data.data.ptr
-        p.srcHost = None
-        p.srcMemoryType = CUmemorytype.CU_MEMORYTYPE_DEVICE
         p.srcPitch = self.Ny * BYTES_PER_PIXEL
-        p.srcXInBytes = 0
-        p.srcY = 0
+        p.dstArray = cu_array
+        p.srcDevice = data.data.ptr
+        p.srcMemoryType = CUmemorytype.CU_MEMORYTYPE_DEVICE
+        p.dstMemoryType = CUmemorytype.CU_MEMORYTYPE_ARRAY
+        # Unused fields
+        p.dstPitch = 0; p.dstXInBytes = 0; p.dstY = 0
+        p.srcXInBytes = 0; p.srcY = 0
+        p.srcArray = None; p.srcHost = None; p.dstDevice = None; p.dstHost = None
+
+        # Perform the copy
         CUDA_CHECK(cuMemcpy2D(p), "cuMemcpy2D failed")
 
         # Hand texture back to OpenGL for sampling render
@@ -379,7 +352,7 @@ class SimulationWindow(mglw.WindowConfig):
 
         # Time-step computing until plotting
         for _ in range(plot_interval):
-            self.vorticity_hat, self.density_hat = dormand_prince_step(self.vorticity_hat, self.density_hat)
+            self.vorticity_hat, self.density_hat = explicit_rk4_step(self.vorticity_hat, self.density_hat)
             self.t += dt
             self.step += 1
         
