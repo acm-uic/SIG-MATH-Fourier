@@ -29,7 +29,8 @@ To compile the module, execute the `python-modules/make-<mode_bindings>.sh` scri
 We also explore applications of the Fourier Transforms numerical solutions of differential equations, as an introductory look into the world of the Spectral Methods. All of the sources pertaining to this excursions are listed at `pde/` directories. A few notable examples are
 
 ### [Hasegawa-Wakatani turbulence](pde/hasegawa-wakatani/)
-https://github.com/user-attachments/assets/0ef390ba-6f46-4f3f-80cc-f4e50028b6fa
+https://github.com/user-attachments/assets/0651d64f-2e68-484e-a926-76dd4e83a5ef
+
 
 ### [Heat equation](pde/heat)
 ![image info](./logs/heat-fft.png)
