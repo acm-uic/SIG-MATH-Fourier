@@ -5,9 +5,19 @@ This repository is a "from-scratch" implementation of the Fourier Transforms eng
 > [!NOTE]
 > The goal of this project is mainly educational. We seek to explore the understanding of the Fourier Transforms from blackboard math all the way to code implementation while also exploring different aspects of effective optimization techniques accross different archtectures and computing paradigms.
 
+## Applications to Solving Differential Equations
+One of the main goal for the project is to explore applications of the Fourier Transforms numerical solutions of differential equations, as an introductory look into the world of the Spectral Methods. All of the sources pertaining to this excursions are listed at `pde/` directories. A few notable examples are
+
+### [Hasegawa-Wakatani turbulence](pde/hasegawa-wakatani/)
+https://github.com/user-attachments/assets/0651d64f-2e68-484e-a926-76dd4e83a5ef
+
+
+### [Heat equation](pde/heat)
+![image info](./logs/heat-fft.png)
+
 ## Compiling and running
 
-The library currently supports two execution pathways:
+We also explore how the Fourier Transform algorithm is implemented under the hood. To this end, we have made ourself a library that can be executed and used in 2 different ways:
 1. Native binary compilation
 1. Python bindings
 
@@ -25,16 +35,6 @@ The library supports Python interoperability of C++ and CUDA codes through the [
 
 To compile the module, execute the `python-modules/make-<mode_bindings>.sh` script. And to use it, place the resulting shared library (`.so` file) to a place where the Python interpreter can see.
 
-## Applications to Solving Differential Equations
-We also explore applications of the Fourier Transforms numerical solutions of differential equations, as an introductory look into the world of the Spectral Methods. All of the sources pertaining to this excursions are listed at `pde/` directories. A few notable examples are
-
-### [Hasegawa-Wakatani turbulence](pde/hasegawa-wakatani/)
-https://github.com/user-attachments/assets/0651d64f-2e68-484e-a926-76dd4e83a5ef
-
-
-### [Heat equation](pde/heat)
-![image info](./logs/heat-fft.png)
-
 
 ## Requirements
 - C++ >=20 compatible compiler (i.e. `g++` or `clang++`)
@@ -46,5 +46,3 @@ https://github.com/user-attachments/assets/0651d64f-2e68-484e-a926-76dd4e83a5ef
 ## Contribute
 
 Of course, feel free to contribute in a way you see fit via [pull-request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request). We recommend forking the repository and make pull requests from you fork.
-
-In particular, we are looking forward to expand the backend horizon (OpenMP, AVX, SYCL,...) of our "from-scratch" apporach and also resolving the repository issues.
