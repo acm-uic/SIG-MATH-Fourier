@@ -59,7 +59,7 @@ kappa = 1.0     # Background gradient
 
 # Extraneous params processing
 if (Nx != Ny):
-    min_N = min(Nx, Ny, 128)
+    min_N = max(min(Nx, Ny), 128)
     print(f"Currently having problems with non-squared resolutions! Default to {min_N} x {min_N} grid discretization\n")
     Nx, Ny = min_N, min_N
 
