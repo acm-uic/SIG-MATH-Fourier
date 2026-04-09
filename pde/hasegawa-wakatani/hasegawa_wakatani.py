@@ -1,8 +1,6 @@
 #%%
 import numpy as np
 import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 from pathlib import Path
 
 import cupy as xp
@@ -68,34 +66,24 @@ if (Nx != Ny):
 Grid building (build on CPU first then copy over to GPU if available)
 """
 # Physical space grid
-x_np = np.linspace(x_low, x_high, Nx, endpoint=False)
-y_np = np.linspace(y_low, y_high, Ny, endpoint=False)
-X_np, Y_np = np.meshgrid(x_np, y_np, indexing="ij")
-
+x = xp.linspace(x_low, x_high, Nx, endpoint=False)
+y = xp.linspace(y_low, y_high, Ny, endpoint=False)
+X, Y = xp.meshgrid(x, y, indexing="ij")
+ 
 # Frequency space grid
-kx_np , ky_np = 2.0*np.pi*np.fft.fftfreq(Nx, d=Lx/Nx) , 2.0*np.pi*np.fft.fftfreq(Ny, d=Ly/Ny) 
-KX_np , KY_np = np.meshgrid(kx_np, ky_np, indexing="ij")
-K2_np = KX_np**2 + KY_np**2
-K4_np = (K2_np)**2
-inv_K2_np =  np.where((K2_np == 0), 0.0, 1.0/np.where((K2_np == 0), 1.0, K2_np))
-
-# 2/3 Dealiasing information
-kx_max = np.max(abs(kx_np))
-ky_max = np.max(abs(ky_np))
-dealias_np = (
-                (np.abs(KX_np) <= (2/3)*kx_max) & 
-                (np.abs(KY_np) <= (2/3)*ky_max)
-).astype(np.float64)
-
-# Upload to grid to GPU once (if available)
-X = xp.asarray(X_np)
-Y = xp.asarray(Y_np)
-KX = xp.asarray(KX_np)
-KY = xp.asarray(KY_np)
-K2 = xp.asarray(K2_np)
-K4 = xp.asarray(K4_np)
-inv_K2 = xp.asarray(inv_K2_np)
-DEALIAS = xp.asarray(dealias_np)
+kx, ky = 2.0*xp.pi*xp.fft.fftfreq(Nx, d=Lx/Nx), 2.0*xp.pi*xp.fft.fftfreq(Ny, d=Ly/Ny)
+KX, KY = xp.meshgrid(kx, ky, indexing="ij")
+K2 = KX**2 + KY**2
+K4 = K2**2
+inv_K2 = xp.where((K2 == 0), 0.0, 1.0/xp.where((K2 == 0), 1.0, K2))
+ 
+# 2/3 Dealiasing mask
+kx_max = xp.max(xp.abs(kx))
+ky_max = xp.max(xp.abs(ky))
+DEALIAS = (
+    (xp.abs(KX) <= (2/3)*kx_max) &
+    (xp.abs(KY) <= (2/3)*ky_max)
+).astype(xp.float64)
 
 #%%
 """
@@ -181,7 +169,7 @@ def make_colormap_lut(colormap, n=256) -> xp.ndarray:
 
     # Normalized RGB scale of the colormap and store on GPU
     RGBA_scale = cmap(np.linspace(0, 1, n))
-    return xp.asarray(RGBA_scale.astype(np.float32))
+    return xp.asarray(RGBA_scale.astype(xp.float32))
 
 #%%
 """
@@ -293,7 +281,7 @@ class SimulationWindow(mglw.WindowConfig):
     resizable = True
     vsync = False # For uncapped FPS
     aspect_ratio = None
-    window_size = (1280, 1280/2)
+    window_size = (1920, 1920/2)
     gl_version = (4, 5)
     resource_dir = (Path(__file__).parent).resolve()
 
