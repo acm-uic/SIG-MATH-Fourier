@@ -293,7 +293,7 @@ class SimulationWindow(mglw.WindowConfig):
     resizable = True
     vsync = False # For uncapped FPS
     aspect_ratio = None
-    window_size = (1280, 1280/2)
+    window_size = (1920, 1920/2)
     gl_version = (4, 5)
     resource_dir = (Path(__file__).parent).resolve()
 
