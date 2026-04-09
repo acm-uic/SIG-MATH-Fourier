@@ -2,6 +2,7 @@
 #include <functional>
 #include <cmath>
 #include <memory>
+#include <numeric>
 
 #define square(x) ((x)*(x))
 
@@ -22,7 +23,7 @@ struct HeatParameters
     HeatParameters()
         : initial_condition([] (double x) {return -std::sin(M_PI*x);} )
         , x_0(-1.0), x_final(1.0)
-        , t_0(0.0), T(1.0), dt(1e-5)
+        , t_0(0.0), T(1.0), dt(1e-3)
         , D(0.2)
         , N(512)
     {}
@@ -81,6 +82,8 @@ class HeatPDESolver1D
 
         /* Public methods */
         Solution solve();
+        const HeatParameters get_config() {return this->config;}
+        const std::vector<double> get_x() {return this->x;}
         
     private:
         
@@ -201,7 +204,29 @@ Solution HeatPDESolver1D::solve()
 */
 int main(int argc, char** argv)
 {
+    // Obtaining the computed solution
     HeatPDESolver1D solver;
     Solution heat_sol = solver.solve();
+
+    // Config
+    const HeatParameters cfg = solver.get_config();
+
+    // Spatial doamin info
+    const std::vector<double> x_vals = solver.get_x();
+    const unsigned int Nx = x_vals.size();
+
+    // Time domain info
+    unsigned int Nt = static_cast<unsigned int>(std::ceil((cfg.T - cfg.t_0) / cfg.dt) + 1);
+    std::vector<double> t_vals(Nt);
+    for (unsigned int k = 0; k < Nt; k++) {t_vals[k] = cfg.t_0 + k*cfg.dt;}
+
+    // Setting up meshgrid for plotting
+    std::vector<std::vector<double>> u_matrix(Nt, std::vector<double>(Nx));
+    for (unsigned int i = 0; i < Nt; ++i) {
+        for (unsigned int j = 0; j < Nx; ++j) {
+            u_matrix[i][j] = heat_sol(i, j);
+        }
+    }
+
     return 0;
 }
