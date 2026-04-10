@@ -99,7 +99,7 @@ def initial_density(X,Y,s):
 
 def initial_vorticity(X,Y,s):
     """
-    Initial vorticity profile derived from the Laplacian: vorticity = nabla^{2}(phi)
+    Initial vorticity profile derived from the Poisson equation: vorticity = nabla^{2}(phi)
     """
     return (4.0*(X**2 + Y**2)/s**4 - 4.0/s**2) * xp.exp(-(X**2 + Y**2) / s**2)
 
@@ -313,6 +313,14 @@ class SimulationWindow(mglw.WindowConfig):
         self.texture_vort = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("jet", n=8192*2))
         self.texture_dens = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("viridis", n=8192*2))
 
+        # Initialize simulation
+        self.initalize_simulation()
+
+        # Setting restart interval 
+        self.RESTART_TIME = 200.0
+
+    def initalize_simulation(self) -> None:
+        """Initialize the simulation"""
         # Initalize simulation states
         self.density_hat = xp.fft.fft2(initial_density(X,Y,s))
         self.vorticity_hat  = xp.fft.fft2(initial_vorticity(X,Y,s))
@@ -337,6 +345,10 @@ class SimulationWindow(mglw.WindowConfig):
     def on_render(self, time: float, frametime: float) -> None:
         # Wiping previous screen
         self.ctx.clear(0.0, 0.0, 0.0)
+
+        # Reset simulation if we move along far enough
+        if (self.t > self.RESTART_TIME):
+            self.initalize_simulation()
 
         # Time-step computing until plotting
         for _ in range(plot_interval):
