@@ -313,13 +313,7 @@ class SimulationWindow(mglw.WindowConfig):
         self.texture_vort = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("jet", n=8192*2))
         self.texture_dens = SimulationTexture(self.ctx, Nx, Ny, make_colormap_lut("viridis", n=8192*2))
 
-        # Initalize simulation states
-        self.density_hat = xp.fft.fft2(initial_density(X,Y,s))
-        self.vorticity_hat  = xp.fft.fft2(initial_vorticity(X,Y,s))
-
-        # Initialize temporal and analytics data
-        self.t = 0.0
-        self.step = 0
+        self.reset_simulation()
 
     def draw(self, texture: SimulationTexture, screen_offset: tuple) -> None:
         texture.texture.use(location=0)
@@ -334,9 +328,23 @@ class SimulationWindow(mglw.WindowConfig):
         self.texture_dens.release()
         self.texture_vort.release()
 
+    def reset_simulation(self):
+        """Reset the simulation"""
+        # Initalize simulation states
+        self.density_hat = xp.fft.fft2(initial_density(X,Y,s))
+        self.vorticity_hat  = xp.fft.fft2(initial_vorticity(X,Y,s))
+
+        # Initialize temporal and analytics data
+        self.t = 0.0
+        self.step = 0
+
     def on_render(self, time: float, frametime: float) -> None:
         # Wiping previous screen
         self.ctx.clear(0.0, 0.0, 0.0)
+
+        # Reset simulation if we move along far enough
+        if (self.t > 200.0):
+            self.reset_simulation()
 
         # Time-step computing until plotting
         for _ in range(plot_interval):
