@@ -21,6 +21,8 @@ import moderngl
 import moderngl_window as mglw
 from OpenGL.GL import GL_TEXTURE_2D
 
+import PIL
+
 # Windows configuration
 import os
 import sys
@@ -269,6 +271,67 @@ class SimulationTexture:
         """
         Texture release wrapper that also unregister the CUDA buffer
         """
+        CUDA_CHECK(cuGraphicsUnregisterResource(self.gl_resource), "cuGraphicsUnregisterResource failed")
+        self.texture.release()
+
+#%%
+"""
+Static color bar rendering for scale (initialized once, never update afterwards)
+"""
+class ScaleColorbarTexture:
+    def __init__(self, ctx: moderngl.Context, cmap_lut: xp.ndarray, W: int=32, H: int=64):
+        # Context
+        self.ctx = ctx
+        self.cmap_lut = cmap_lut
+        self.W = W
+        self.H = H
+
+        # Computing index for the colorbar
+        scale = (self.cmap_lut.shape[0]) - 1
+        color_bar = xp.arrange(self.H, dtype=xp.float32) / (H - 1)
+        self.color_indicies = xp.clip((color_bar * scale).astype(xp.float32), 0, scale)
+
+        # Colorbar Texture (32-bit floats)
+        self.texture = ctx.texture((Nx, Ny), components=4, dtype="f4")
+        self.texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+        self.texture.repeat_x = False
+        self.texture.repeat_y = False
+
+        # Register OpenGL texture with CUDA
+        err, self.gl_resource = cuGraphicsGLRegisterImage(
+            self.texture.glo,   # OpenGL Texture ID
+            GL_TEXTURE_2D,      # 2D target texture
+            CUgraphicsRegisterFlags.CU_GRAPHICS_REGISTER_FLAGS_WRITE_DISCARD # CUDA writes only
+        )
+        CUDA_CHECK(err, "cuGraphicsGLRegisterImage failed")
+        CUDA_CHECK(cuGraphicsMapResources(1, self.gl_resource, None), "cuGraphicsMapResources failed")
+
+        # Get a writable pointer to the texture's GPU memory
+        err, cu_array = cuGraphicsSubResourceGetMappedArray(self.gl_resource, 0, 0)
+        CUDA_CHECK(err, "cuGraphicsSubResourceGetMappedArray failed")
+
+        # RGBA contiguous buffer for rendering color scale
+        rgba_array = xp.ascontiguousarray(self.cmap_lut[color_indicies])
+
+        # 2D graphics memory copy
+        p = CUDA_MEMCPY2D()
+        p.Height = H
+        p.WidthInBytes = W * BYTES_PER_PIXEL
+        p.srcPitch = W * BYTES_PER_PIXEL
+        p.dstArray = cu_array
+        p.srcDevice = rgba_array.data.ptr
+        p.srcMemoryType = CUmemorytype.CU_MEMORYTYPE_DEVICE
+        p.dstMemoryType = CUmemorytype.CU_MEMORYTYPE_ARRAY
+        # Unused fields
+        p.dstPitch = 0; p.dstXInBytes = 0; p.dstY = 0
+        p.srcXInBytes = 0; p.srcY = 0
+        p.srcArray = None; p.srcHost = None; p.dstDevice = None; p.dstHost = None
+        CUDA_CHECK(cuMemcpy2D(p), "cuMemcpy2D failed")
+
+        # Hand texture back to OpenGL for sampling render
+        CUDA_CHECK(cuGraphicsUnmapResources(1, self.gl_resource, None), "cuGraphicsUnmapResources failed")
+    
+    def release() -> None:
         CUDA_CHECK(cuGraphicsUnregisterResource(self.gl_resource), "cuGraphicsUnregisterResource failed")
         self.texture.release()
 
