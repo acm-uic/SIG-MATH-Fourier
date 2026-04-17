@@ -337,6 +337,27 @@ class ScaleColorbarTexture:
 
 #%%
 """
+HUD analytics overlay render
+"""
+
+# Fonts for the overlay
+FONTS = [
+    # TODO: Finding a way load .ttf files more portably
+]
+
+def load_fonts(size, bold=False):
+    pass
+
+# Actual HUD rendering object
+class HUD:
+    def __init__(self, ctx: moderngl.Context, W: int, H: int):
+        self.OVERLAY_INTERVAL = 0.05
+        self.ctx = ctx
+        self.W = W
+        self.H = H
+
+#%%
+"""
 ModernGL rendering Window
 """
 class SimulationWindow(mglw.WindowConfig):

@@ -1,4 +1,4 @@
-#version 450
+#version 460
 
 in vec2 uv;         // Interpolated uv-coordinates recieved from the Vertex shader
 out vec4 fragColor; // Fragment RGBA color to be written to the screen
